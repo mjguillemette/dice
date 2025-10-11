@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bedroom Scene - PS1 Horror</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            width: 100vw !important;
+            height: 100vh !important;
+        }
+        #info, #hellMeter {
+            position: absolute;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        #info.visible, #hellMeter.visible {
+            opacity: 1;
+        }
+        #info {
+            top: 10px;
+            left: 10px;
+        }
+        #hellMeter {
+            top: 10px;
+            right: 10px;
+        }
+        #hellBar {
+            width: 200px;
+            height: 20px;
+            background: #333;
+            border: 2px solid #666;
+            margin-top: 5px;
+        }
+        #hellFill {
+            height: 100%;
+            background: linear-gradient(to right, #4169e1, #ff0000);
+            width: 0%;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        C to toggle cinematic/free camera<br>
+        <span id="freeControls" style="display:none;">
+        Mouse to look around | WASD to move<br>
+        </span>
+        <span id="cineControls">
+        N for next camera angle<br>
+        </span>
+        Q/E manual corruption | T auto-corruption<br>
+        <span id="cameraName" style="color: #ffcc00; margin-top: 5px; display: block;"></span>
+    </div>
+    <div id="hellMeter">
+        <div>CORRUPTION LEVEL</div>
+        <div id="hellBar">
+            <div id="hellFill"></div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer;
+        let moveForward = false, moveBackward = false;
+        let moveLeft = false, moveRight = false;
+        let velocity = new THREE.Vector3();
+        let direction = new THREE.Vector3();
+        const speed = 0.1;
+        let hellFactor = 0.0;
+        let materials = [];
+        let autoCorruption = true;
+        let corruptionDirection = 1;
+        const corruptionSpeed = 0.0003;
+        let swappableObjects = [];
+        
+        let cinematicMode = true;
+        let currentCameraIndex = 0;
+        let cameraTransitionTime = 0;
+        const cameraHoldDuration = 8;
+        const cameraTransitionDuration = 2;
+        let freeCamMode = false;
+        
+        const cinematicAngles = [
+            // Wide establishing shot from corner
+            { pos: new THREE.Vector3(4, 2.5, 4), lookAt: new THREE.Vector3(-2, 1, -2), name: "Bedroom Overview" },
+            
+            // Focus on bed - where teddy bear corrupts
+            { pos: new THREE.Vector3(-3.5, 1.2, -0.5), lookAt: new THREE.Vector3(-2.8, 0.8, -2), name: "Bed Detail" },
+            
+            // Close on ceiling light transformation
+            { pos: new THREE.Vector3(0, 3.8, 0.5), lookAt: new THREE.Vector3(0, 4.7, 0), name: "Ceiling Light" },
+            
+            // Window view - watch it turn blood red
+            { pos: new THREE.Vector3(1.5, 2.2, -3), lookAt: new THREE.Vector3(3, 2.5, -4.9), name: "Window Corruption" },
+            
+            // Bureau and lamp close-up
+            { pos: new THREE.Vector3(2.5, 1.5, -2), lookAt: new THREE.Vector3(3.6, 1.8, -3), name: "Desk Lamp" },
+            
+            // TV screen transformation
+            { pos: new THREE.Vector3(0, 1.6, -1), lookAt: new THREE.Vector3(0, 1.4, -4.3), name: "TV Screen" },
+            
+            // Low dramatic angle across floor and rug
+            { pos: new THREE.Vector3(-2, 0.4, 1), lookAt: new THREE.Vector3(1, 0.3, -2), name: "Floor Decay" },
+            
+            // High corner showing full room corruption
+            { pos: new THREE.Vector3(-4, 3.5, 3), lookAt: new THREE.Vector3(0, 1.5, -2), name: "Room Descent" },
+            
+            // Close on wall textures and decay
+            { pos: new THREE.Vector3(-3, 2, -3.5), lookAt: new THREE.Vector3(-4.5, 2.5, -4), name: "Wall Corruption" },
+            
+            // Dramatic low angle looking up at ceiling
+            { pos: new THREE.Vector3(0, 0.5, 0), lookAt: new THREE.Vector3(0, 4.5, -2), name: "Ascension" },
+        ];
+        
+        let targetCameraPos = new THREE.Vector3();
+        let targetCameraLookAt = new THREE.Vector3();
+        let currentCameraLookAt = new THREE.Vector3(0, 0, -5);
+
+        const vertexShader = `
+            varying vec2 vUv;
+            varying vec3 vNormal;
+            varying vec3 vPosition;
+            uniform float time;
+            uniform float hellFactor;
+            
+            void main() {
+                vUv = uv;
+                vNormal = normal;
+                vPosition = position;
+                
+                vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                gl_Position = projectionMatrix * mvPosition;
+                
+                // Apply PS1 vertex snapping in screen space AFTER projection
+                vec4 snappedPosition = gl_Position;
+                float gridSize = 150.0 - (hellFactor * 30.0);
+                snappedPosition.xyz = snappedPosition.xyz / snappedPosition.w;
+                snappedPosition.xy = floor(snappedPosition.xy * gridSize) / gridSize;
+                snappedPosition.xyz *= snappedPosition.w;
+                
+                gl_Position = snappedPosition;
+            }
+        `;
+
+        const fragmentShader = `
+            uniform vec3 normalColor;
+            uniform vec3 hellColor;
+            uniform float hellFactor;
+            uniform float time;
+            uniform float opacity;
+            varying vec2 vUv;
+            varying vec3 vNormal;
+            varying vec3 vPosition;
+            
+            float noise(vec2 p) {
+                return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+            }
+            
+            float noise2(vec2 p) {
+                vec2 i = floor(p);
+                vec2 f = fract(p);
+                f = f * f * (3.0 - 2.0 * f);
+                float a = noise(i);
+                float b = noise(i + vec2(1.0, 0.0));
+                float c = noise(i + vec2(0.0, 1.0));
+                float d = noise(i + vec2(1.0, 1.0));
+                return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+            }
+            
+            float fbm(vec2 p) {
+                float value = 0.0;
+                float amplitude = 0.5;
+                float frequency = 1.0;
+                for(int i = 0; i < 5; i++) {
+                    value += amplitude * noise2(p * frequency);
+                    frequency *= 2.17;
+                    amplitude *= 0.5;
+                }
+                return value;
+            }
+            
+            // PS1-style texture mapping
+            vec3 ps1Texture(vec2 uv, vec3 baseColor) {
+                // Very subtle noise variation - almost imperceptible
+                float noise1 = fbm(uv * 80.0 + vPosition.xy * 2.0) * 0.5 + 0.5;
+                float noise2 = fbm(uv * 120.0 - vPosition.yz * 3.0) * 0.5 + 0.5;
+                
+                // Combine subtle variations
+                float variation = mix(noise1, noise2, 0.5);
+                
+                // PS1-style dithering pattern
+                float dither = mod(floor(uv.x * 128.0) + floor(uv.y * 128.0), 2.0);
+                
+                // Apply very subtle variation and dithering
+                vec3 textured = baseColor;
+                textured *= 0.96 + variation * 0.08;  // Very subtle brightness variation
+                textured += (dither - 0.5) * 0.06;    // Keep nice dithering
+                
+                return textured;
+            }
+            
+            // Wood grain texture
+            vec3 woodGrain(vec2 uv, vec3 baseColor) {
+                float grain = fbm(vec2(uv.x * 25.0, uv.y * 80.0) + vPosition.xy * 0.5);
+                float rings = sin(uv.x * 60.0 + grain * 8.0) * 0.5 + 0.5;
+                rings = smoothstep(0.3, 0.7, rings);
+                
+                vec3 darkWood = baseColor * 0.6;
+                vec3 lightWood = baseColor * 1.2;
+                
+                return mix(darkWood, lightWood, rings * 0.4 + grain * 0.3);
+            }
+            
+            // Fabric texture
+            vec3 fabricTexture(vec2 uv, vec3 baseColor) {
+                float weave1 = sin(uv.x * 150.0) * sin(uv.y * 150.0);
+                float weave2 = sin(uv.x * 200.0 + 0.5) * sin(uv.y * 200.0 + 0.5);
+                float weave = (weave1 + weave2) * 0.5;
+                
+                float fuzz = fbm(uv * 100.0 + vPosition.xy * 3.0) * 0.1;
+                
+                return baseColor * (0.9 + weave * 0.15 + fuzz);
+            }
+            
+            void main() {
+                vec2 pixelUv = floor(vUv * 64.0) / 64.0;
+                vec2 organicUv = vUv;
+                
+                float n = noise(pixelUv * 10.0 + time * 0.5);
+                
+                vec3 baseColor = mix(normalColor, hellColor, hellFactor);
+                
+                // Apply PS1-style texturing based on surface
+                // Detect surface type by color/position
+                float isWood = step(0.3, normalColor.r) * step(normalColor.r, 0.6) * step(normalColor.g, 0.4);
+                float isFabric = step(0.4, normalColor.b);
+                float isWall = step(0.8, normalColor.r) * step(0.8, normalColor.g) * step(0.8, normalColor.b);
+                
+                if (isWall > 0.5) {
+                    // Walls are completely clean - no texture at all
+                    baseColor = baseColor;
+                } else if (isWood > 0.5) {
+                    baseColor = woodGrain(vUv, baseColor);
+                } else if (isFabric > 0.5) {
+                    baseColor = fabricTexture(vUv, baseColor);
+                } else {
+                    baseColor = ps1Texture(vUv, baseColor);
+                }
+                
+                // Progressive corruption stages
+                float stage1 = smoothstep(0.0, 0.3, hellFactor);
+                float stage2 = smoothstep(0.2, 0.5, hellFactor);
+                float stage3 = smoothstep(0.4, 0.7, hellFactor);
+                float stage4 = smoothstep(0.6, 0.9, hellFactor);
+                float stage5 = smoothstep(0.8, 1.0, hellFactor);
+                
+                // STAGE 1: Light dust
+                float dustPattern = fbm(organicUv * 25.0 + vPosition.xy * 0.5);
+                float dust = smoothstep(0.4, 0.7, dustPattern) * stage1;
+                vec3 dustColor = vec3(0.5, 0.48, 0.45);
+                baseColor = mix(baseColor, dustColor, dust * 0.15);
+                
+                // STAGE 2: Grime and mold
+                float dirtPattern = fbm(organicUv * 18.0 + vPosition.xy * 0.7 + time * 0.02);
+                float grime = fbm(organicUv * 11.0 + vPosition.yz * 0.4 + vec2(time * 0.01, 0.0));
+                float stains = fbm(organicUv * 23.0 + vPosition.xz * 0.9 + vec2(0.0, time * 0.015));
+                
+                float dirtAmount = (dirtPattern * 0.4 + grime * 0.3 + stains * 0.3);
+                dirtAmount = smoothstep(0.25, 0.75, dirtAmount) * stage2;
+                
+                vec3 dirtColor = mix(
+                    vec3(0.4, 0.35, 0.3),
+                    vec3(0.2, 0.05, 0.0),
+                    hellFactor
+                );
+                baseColor = mix(baseColor, dirtColor, dirtAmount * 0.5);
+                
+                float moldPattern = fbm(organicUv * 14.0 + vPosition.xy * 1.1 + time * 0.03);
+                moldPattern *= fbm(organicUv * 9.0 + vPosition.yz * 0.5);
+                float mold = smoothstep(0.6, 0.8, moldPattern) * stage2;
+                vec3 moldColor = mix(vec3(0.1, 0.15, 0.05), vec3(0.05, 0.08, 0.0), hellFactor);
+                baseColor = mix(baseColor, moldColor, mold * 0.4);
+                
+                // STAGE 3: Rust
+                float rust = fbm(organicUv * 21.0 + vPosition.xz * 0.8 + time * 0.04);
+                rust *= fbm(organicUv * 13.0 - vPosition.xy * 0.3);
+                rust = smoothstep(0.45, 0.75, rust) * stage3;
+                vec3 rustColor = vec3(0.3, 0.1, 0.0);
+                baseColor = mix(baseColor, rustColor, rust * 0.35);
+                
+                // STAGE 4: Blood and veins
+                float bloodStains = fbm(organicUv * 28.0 + vPosition.xy * 1.2 + time * 0.08);
+                bloodStains *= fbm(organicUv * 15.0 - vPosition.xz * 0.6 + time * 0.05);
+                bloodStains = smoothstep(0.55, 0.85, bloodStains) * stage4;
+                vec3 bloodColor = vec3(0.4, 0.0, 0.0);
+                baseColor = mix(baseColor, bloodColor, bloodStains * 0.5);
+                
+                float veinNoise1 = fbm(organicUv * 35.0 + vPosition.xy * 2.3 + time * 0.3);
+                float veinNoise2 = fbm(organicUv * 27.0 - vPosition.xz * 1.8 - time * 0.2);
+                float veins1 = sin(organicUv.x * 47.0 + time + vPosition.y * 3.0 + veinNoise1 * 5.0) * 
+                               cos(organicUv.y * 53.0 - time * 0.7 + vPosition.x * 2.0 + veinNoise2 * 4.0);
+                float veins2 = sin(organicUv.x * 31.0 - time * 0.5 + vPosition.z * 4.0 + veinNoise2 * 3.0) * 
+                               cos(organicUv.y * 41.0 + time * 0.8 + veinNoise1 * 6.0);
+                float veins = (veins1 + veins2 * 0.7);
+                
+                float veinThickness = fbm(organicUv * 20.0 + vPosition.xy * 0.5);
+                veins = smoothstep(0.65 + veinThickness * 0.15, 0.95, veins) * stage4;
+                baseColor = mix(baseColor, vec3(0.5, 0.0, 0.0), veins * 0.6);
+                
+                // STAGE 5: Pulsing
+                float pulsePattern = fbm(organicUv * 8.0 + vPosition.xz * 0.3);
+                float pulse = sin(time * 2.3 + vPosition.x + pulsePattern * 3.0) * 
+                             cos(time * 1.7 + vPosition.z + pulsePattern * 2.0) * 0.5 + 0.5;
+                baseColor += vec3(0.2, 0.0, 0.0) * pulse * stage5 * 0.5;
+                
+                baseColor += (n - 0.5) * 0.1 * hellFactor;
+                
+                float lighting = max(dot(vNormal, vec3(0.5, 1.0, 0.5)), 0.3);
+                baseColor *= lighting;
+                
+                baseColor *= (1.0 - hellFactor * 0.5);
+                
+                float gray = dot(baseColor, vec3(0.299, 0.587, 0.114));
+                baseColor = mix(baseColor, vec3(gray), hellFactor * 0.3);
+                
+                gl_FragColor = vec4(baseColor, opacity);
+            }
+        `;
+
+        function createPS1Material(normalColor, hellColor, transparent) {
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    normalColor: { value: new THREE.Color(normalColor) },
+                    hellColor: { value: new THREE.Color(hellColor) },
+                    hellFactor: { value: 0.0 },
+                    time: { value: 0.0 },
+                    opacity: { value: 1.0 }
+                },
+                vertexShader: vertexShader,
+                fragmentShader: fragmentShader,
+                transparent: transparent || false,
+                depthWrite: true,
+                depthTest: true,
+                side: THREE.FrontSide
+            });
+            materials.push(material);
+            return material;
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.fog = new THREE.Fog(0x000000, 1, 20);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 1.6, 5);
+
+            renderer = new THREE.WebGLRenderer({ antialias: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.sortObjects = true;
+            document.body.appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+            scene.add(ambientLight);
+
+            // Main ceiling light - MUCH brighter
+            const ceilingPointLight = new THREE.PointLight(0xffffbb, 1.2, 20);
+            ceilingPointLight.position.set(0, 4.7, 0);
+            scene.add(ceilingPointLight);
+
+            // Window light (sunlight) - stronger
+            const windowLight = new THREE.DirectionalLight(0x88bbff, 0.8);
+            windowLight.position.set(5, 5, -5);
+            scene.add(windowLight);
+
+            // Desk lamp light - visible glow
+            const deskLampLight = new THREE.PointLight(0xffeecc, 0.8, 6);
+            deskLampLight.position.set(3.6, 2.0, -3);
+            scene.add(deskLampLight);
+
+            // TV screen glow - stronger
+            const tvLight = new THREE.PointLight(0x3366ff, 0.6, 5);
+            tvLight.position.set(0, 1.4, -4);
+            scene.add(tvLight);
+
+            // Corner accent lights for atmosphere
+            const cornerLight1 = new THREE.PointLight(0xffffff, 0.3, 8);
+            cornerLight1.position.set(-4, 1, -4);
+            scene.add(cornerLight1);
+
+            const cornerLight2 = new THREE.PointLight(0xffffff, 0.3, 8);
+            cornerLight2.position.set(4, 1, 3);
+            scene.add(cornerLight2);
+
+            // Hell ambient lights - start invisible, appear during corruption
+            const hellLight1 = new THREE.PointLight(0xff0000, 0, 10);
+            hellLight1.position.set(-3, 2, -3);
+            scene.add(hellLight1);
+
+            const hellLight2 = new THREE.PointLight(0xff0000, 0, 10);
+            hellLight2.position.set(3, 2, 2);
+            scene.add(hellLight2);
+
+            const hellLight3 = new THREE.PointLight(0xaa0000, 0, 8);
+            hellLight3.position.set(0, 0.5, -2);
+            scene.add(hellLight3);
+
+            const hellLight4 = new THREE.PointLight(0xff3300, 0, 12);
+            hellLight4.position.set(-2, 3, 0);
+            scene.add(hellLight4);
+
+            const hellLight5 = new THREE.PointLight(0x880000, 0, 7);
+            hellLight5.position.set(2, 1, -4);
+            scene.add(hellLight5);
+
+            // Store lights for corruption effects
+            window.sceneLights = {
+                ceiling: ceilingPointLight,
+                window: windowLight,
+                deskLamp: deskLampLight,
+                tv: tvLight,
+                corner1: cornerLight1,
+                corner2: cornerLight2,
+                hell1: hellLight1,
+                hell2: hellLight2,
+                hell3: hellLight3,
+                hell4: hellLight4,
+                hell5: hellLight5
+            };
+
+            const floorGeometry = new THREE.PlaneGeometry(10, 10);
+            const floorMaterial = createPS1Material(0x8b7355, 0x2a0a0a);
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            scene.add(floor);
+
+            const rugGeometry = new THREE.PlaneGeometry(4, 3);
+            const rugMaterial = createPS1Material(0xcc6666, 0x660000);
+            const rug = new THREE.Mesh(rugGeometry, rugMaterial);
+            rug.rotation.x = -Math.PI / 2;
+            rug.position.y = 0.05;
+            scene.add(rug);
+
+            createWall(0, 2.5, -5, 10, 5, 0.2, 0xe0e0e0, 0x1a0000);
+            createWall(-5, 2.5, 0, 0.2, 5, 10, 0xe0e0e0, 0x1a0000);
+            createWall(5, 2.5, 0, 0.2, 5, 10, 0xe0e0e0, 0x1a0000);
+            createWall(0, 2.5, 5, 10, 5, 0.2, 0xe0e0e0, 0x1a0000);
+
+            const ceilingGeometry = new THREE.PlaneGeometry(10, 10);
+            const ceilingMaterial = createPS1Material(0xffffff, 0x330000);
+            const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.y = 5;
+            scene.add(ceiling);
+
+            createBed();
+            createBureau();
+            createTVStand();
+            createWindow();
+            createCeilingLight();
+            addDecor();
+
+            setCinematicAngle(0);
+
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            document.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('resize', onWindowResize);
+
+            renderer.domElement.addEventListener('click', function() {
+                if (freeCamMode) {
+                    renderer.domElement.requestPointerLock();
+                }
+            });
+
+            animate();
+        }
+
+        function createWall(x, y, z, w, h, d, normalColor, hellColor) {
+            const geometry = new THREE.BoxGeometry(w, h, d);
+            const material = createPS1Material(normalColor, hellColor);
+            const wall = new THREE.Mesh(geometry, material);
+            wall.position.set(x, y, z);
+            scene.add(wall);
+        }
+
+        function createBed() {
+            const mattressGeometry = new THREE.BoxGeometry(3, 0.4, 4);
+            const mattressMaterial = createPS1Material(0x4169e1, 0x330033);
+            const mattress = new THREE.Mesh(mattressGeometry, mattressMaterial);
+            mattress.position.set(-2, 0.5, -2);
+            scene.add(mattress);
+
+            const pillowGeometry = new THREE.BoxGeometry(1, 0.2, 0.6);
+            const pillowMaterial = createPS1Material(0xffffff, 0x440000);
+            const pillow = new THREE.Mesh(pillowGeometry, pillowMaterial);
+            pillow.position.set(-2, 0.8, -3.5);
+            scene.add(pillow);
+
+            const frameGeometry = new THREE.BoxGeometry(3.2, 0.3, 4.2);
+            const frameMaterial = createPS1Material(0x654321, 0x1a0000);
+            const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+            frame.position.set(-2, 0.15, -2);
+            scene.add(frame);
+        }
+
+        function createBureau() {
+            const bureauGeometry = new THREE.BoxGeometry(2, 1.5, 1);
+            const bureauMaterial = createPS1Material(0x8b4513, 0x2d0000);
+            const bureau = new THREE.Mesh(bureauGeometry, bureauMaterial);
+            bureau.position.set(3, 0.75, -3);
+            scene.add(bureau);
+
+            for (let i = 0; i < 3; i++) {
+                const drawerGeometry = new THREE.BoxGeometry(1.8, 0.4, 0.1);
+                const drawerMaterial = createPS1Material(0x654321, 0x1a0000);
+                const drawer = new THREE.Mesh(drawerGeometry, drawerMaterial);
+                drawer.position.set(3, 0.3 + i * 0.5, -2.45);
+                scene.add(drawer);
+
+                const handleGeometry = new THREE.SphereGeometry(0.05, 6, 6);
+                const handleMaterial = createPS1Material(0xc0c0c0, 0x660000);
+                const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+                handle.position.set(3, 0.3 + i * 0.5, -2.35);
+                scene.add(handle);
+            }
+        }
+
+        function createTVStand() {
+            const standGeometry = new THREE.BoxGeometry(2.5, 0.8, 0.8);
+            const standMaterial = createPS1Material(0x2c2c2c, 0x0a0000);
+            const stand = new THREE.Mesh(standGeometry, standMaterial);
+            stand.position.set(0, 0.4, -4.5);
+            scene.add(stand);
+
+            const tvGeometry = new THREE.BoxGeometry(2, 1.2, 0.15);
+            const tvMaterial = createPS1Material(0x1a1a1a, 0x000000);
+            const tv = new THREE.Mesh(tvGeometry, tvMaterial);
+            tv.position.set(0, 1.4, -4.35);
+            scene.add(tv);
+
+            const screenGeometry = new THREE.PlaneGeometry(1.8, 1);
+            const screenMaterial = createPS1Material(0x4080ff, 0xff0000);
+            screenMaterial.side = THREE.DoubleSide;
+            screenMaterial.polygonOffset = true;
+            screenMaterial.polygonOffsetFactor = -1;
+            screenMaterial.polygonOffsetUnits = -1;
+            const screen = new THREE.Mesh(screenGeometry, screenMaterial);
+            screen.position.set(0, 1.4, -4.2);
+            scene.add(screen);
+        }
+
+        function createWindow() {
+            const frameGeometry = new THREE.BoxGeometry(2, 2, 0.2);
+            const frameMaterial = createPS1Material(0xffffff, 0x330000);
+            const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+            frame.position.set(3, 2.5, -4.9);
+            scene.add(frame);
+
+            const glassGeometry = new THREE.PlaneGeometry(1.8, 1.8);
+            const normalGlassMaterial = createPS1Material(0x87ceeb, 0x1a0000, true);
+            normalGlassMaterial.side = THREE.DoubleSide;
+            normalGlassMaterial.polygonOffset = true;
+            normalGlassMaterial.polygonOffsetFactor = -1;
+            normalGlassMaterial.polygonOffsetUnits = -1;
+            const normalGlass = new THREE.Mesh(glassGeometry, normalGlassMaterial);
+            normalGlass.position.set(3, 2.5, -4.75);
+            scene.add(normalGlass);
+
+            const hellGlassMaterial = createPS1Material(0x8b0000, 0x330000, true);
+            hellGlassMaterial.side = THREE.DoubleSide;
+            hellGlassMaterial.polygonOffset = true;
+            hellGlassMaterial.polygonOffsetFactor = -1;
+            hellGlassMaterial.polygonOffsetUnits = -1;
+            const hellGlass = new THREE.Mesh(glassGeometry.clone(), hellGlassMaterial);
+            hellGlass.position.set(3, 2.5, -4.74);
+            scene.add(hellGlass);
+
+            swappableObjects.push({
+                normal: normalGlass,
+                hell: hellGlass,
+                normalMaterial: normalGlassMaterial,
+                hellMaterial: hellGlassMaterial
+            });
+        }
+
+        function createCeilingLight() {
+            const lightFixtureGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+            const normalLightMaterial = createPS1Material(0xffffe0, 0xff0000, true);
+            const normalLight = new THREE.Mesh(lightFixtureGeometry, normalLightMaterial);
+            normalLight.position.set(0, 4.7, 0);
+            normalLight.renderOrder = 3;
+            scene.add(normalLight);
+
+            const hellLightMaterial = createPS1Material(0xff0000, 0x8b0000, true);
+            const hellLight = new THREE.Mesh(lightFixtureGeometry.clone(), hellLightMaterial);
+            hellLight.position.set(0, 4.7, 0);
+            hellLight.renderOrder = 3;
+            scene.add(hellLight);
+
+            swappableObjects.push({
+                normal: normalLight,
+                hell: hellLight,
+                normalMaterial: normalLightMaterial,
+                hellMaterial: hellLightMaterial
+            });
+        }
+
+        function addDecor() {
+            // Teddy bear
+            const bearGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+            const normalBearMaterial = createPS1Material(0xd2691e, 0x8b4513, true);
+            const normalBear = new THREE.Mesh(bearGeometry, normalBearMaterial);
+            normalBear.position.set(-3, 0.8, -2);
+            normalBear.renderOrder = 4;
+            scene.add(normalBear);
+
+            const hellBearMaterial = createPS1Material(0x2d0000, 0x000000, true);
+            const hellBear = new THREE.Mesh(bearGeometry.clone(), hellBearMaterial);
+            hellBear.position.set(-3, 0.8, -2);
+            hellBear.renderOrder = 4;
+            scene.add(hellBear);
+
+            swappableObjects.push({
+                normal: normalBear,
+                hell: hellBear,
+                normalMaterial: normalBearMaterial,
+                hellMaterial: hellBearMaterial
+            });
+
+            // Lamp
+            const lampBaseGeometry = new THREE.CylinderGeometry(0.1, 0.15, 0.3, 8);
+            const normalLampMaterial = createPS1Material(0x8b7355, 0x2d0000, true);
+            const normalLamp = new THREE.Mesh(lampBaseGeometry, normalLampMaterial);
+            normalLamp.position.set(3.6, 1.65, -3);
+            normalLamp.renderOrder = 5;
+            scene.add(normalLamp);
+
+            const hellLampMaterial = createPS1Material(0x4a4a4a, 0x1a0000, true);
+            const hellLamp = new THREE.Mesh(lampBaseGeometry.clone(), hellLampMaterial);
+            hellLamp.position.set(3.6, 1.65, -3);
+            hellLamp.renderOrder = 5;
+            scene.add(hellLamp);
+
+            swappableObjects.push({
+                normal: normalLamp,
+                hell: hellLamp,
+                normalMaterial: normalLampMaterial,
+                hellMaterial: hellLampMaterial
+            });
+        }
+
+        function setCinematicAngle(index) {
+            currentCameraIndex = index % cinematicAngles.length;
+            const angle = cinematicAngles[currentCameraIndex];
+            targetCameraPos.copy(angle.pos);
+            targetCameraLookAt.copy(angle.lookAt);
+            cameraTransitionTime = 0;
+            
+            document.getElementById('cameraName').textContent = angle.name;
+        }
+
+        function onKeyDown(e) {
+            switch(e.code) {
+                case 'KeyW': if (freeCamMode) moveForward = true; break;
+                case 'KeyS': if (freeCamMode) moveBackward = true; break;
+                case 'KeyA': if (freeCamMode) moveLeft = true; break;
+                case 'KeyD': if (freeCamMode) moveRight = true; break;
+                case 'KeyQ': 
+                    autoCorruption = false;
+                    hellFactor = Math.max(0, hellFactor - 0.05);
+                    updateHellFactor();
+                    break;
+                case 'KeyE': 
+                    autoCorruption = false;
+                    hellFactor = Math.min(1, hellFactor + 0.05);
+                    updateHellFactor();
+                    break;
+                case 'KeyT':
+                    autoCorruption = !autoCorruption;
+                    break;
+                case 'KeyC':
+                    freeCamMode = !freeCamMode;
+                    cinematicMode = !cinematicMode;
+                    document.getElementById('freeControls').style.display = freeCamMode ? 'block' : 'none';
+                    document.getElementById('cineControls').style.display = cinematicMode ? 'block' : 'none';
+                    document.getElementById('cameraName').style.display = cinematicMode ? 'block' : 'none';
+                    if (!freeCamMode) {
+                        setCinematicAngle(currentCameraIndex);
+                    }
+                    break;
+                case 'KeyN':
+                    if (cinematicMode) {
+                        setCinematicAngle(currentCameraIndex + 1);
+                    }
+                    break;
+                case 'KeyH':
+                    // Toggle UI visibility
+                    document.getElementById('info').classList.toggle('visible');
+                    document.getElementById('hellMeter').classList.toggle('visible');
+                    break;
+            }
+        }
+
+        function onKeyUp(e) {
+            switch(e.code) {
+                case 'KeyW': moveForward = false; break;
+                case 'KeyS': moveBackward = false; break;
+                case 'KeyA': moveLeft = false; break;
+                case 'KeyD': moveRight = false; break;
+            }
+        }
+
+        function updateHellFactor() {
+            materials.forEach(mat => {
+                mat.uniforms.hellFactor.value = hellFactor;
+            });
+            document.getElementById('hellFill').style.width = (hellFactor * 100) + '%';
+            
+            const fogColor = new THREE.Color().lerpColors(
+                new THREE.Color(0x87ceeb),
+                new THREE.Color(0x0a0000),
+                hellFactor
+            );
+            scene.fog.color = fogColor;
+            scene.background = fogColor;
+
+            // DRAMATIC light changes based on corruption
+            if (window.sceneLights) {
+                // Ceiling light: bright yellow -> intense red
+                window.sceneLights.ceiling.color.lerpColors(
+                    new THREE.Color(0xffffbb),
+                    new THREE.Color(0xff0000),
+                    hellFactor
+                );
+                window.sceneLights.ceiling.intensity = 1.2 - (hellFactor * 0.5);
+
+                // Window light: bright blue -> dark blood red
+                window.sceneLights.window.color.lerpColors(
+                    new THREE.Color(0x88bbff),
+                    new THREE.Color(0x330000),
+                    hellFactor
+                );
+                window.sceneLights.window.intensity = 0.8 * (1.0 - hellFactor * 0.8);
+
+                // Desk lamp: warm cream -> hellfire orange
+                window.sceneLights.deskLamp.color.lerpColors(
+                    new THREE.Color(0xffeecc),
+                    new THREE.Color(0xff3300),
+                    hellFactor
+                );
+                window.sceneLights.deskLamp.intensity = 0.8 + (hellFactor * 0.4);
+
+                // TV screen: bright blue -> blood red
+                window.sceneLights.tv.color.lerpColors(
+                    new THREE.Color(0x3366ff),
+                    new THREE.Color(0xcc0000),
+                    hellFactor
+                );
+                window.sceneLights.tv.intensity = 0.6 + (hellFactor * 0.6);
+
+                // Corner lights dim and turn red
+                const cornerColor = new THREE.Color();
+                cornerColor.lerpColors(
+                    new THREE.Color(0xffffff),
+                    new THREE.Color(0x660000),
+                    hellFactor
+                );
+                window.sceneLights.corner1.color.copy(cornerColor);
+                window.sceneLights.corner2.color.copy(cornerColor);
+                window.sceneLights.corner1.intensity = 0.3 * (1.0 - hellFactor * 0.5);
+                window.sceneLights.corner2.intensity = 0.3 * (1.0 - hellFactor * 0.5);
+            }
+
+            swappableObjects.forEach(obj => {
+                const fadeThreshold = 0.3;
+                const fadeRange = 0.4;
+                
+                let normalOpacity, hellOpacity;
+                
+                if (hellFactor < fadeThreshold) {
+                    normalOpacity = 1.0;
+                    hellOpacity = 0.0;
+                } else if (hellFactor > fadeThreshold + fadeRange) {
+                    normalOpacity = 0.0;
+                    hellOpacity = 1.0;
+                } else {
+                    const fadeProgress = (hellFactor - fadeThreshold) / fadeRange;
+                    normalOpacity = 1.0 - fadeProgress;
+                    hellOpacity = fadeProgress;
+                }
+                
+                obj.normalMaterial.uniforms.opacity.value = normalOpacity;
+                obj.hellMaterial.uniforms.opacity.value = hellOpacity;
+                
+                obj.normal.visible = normalOpacity > 0.01;
+                obj.hell.visible = hellOpacity > 0.01;
+            });
+        }
+
+        function onMouseMove(e) {
+            if (freeCamMode && document.pointerLockElement === renderer.domElement) {
+                camera.rotation.y -= e.movementX * 0.002;
+                camera.rotation.x -= e.movementY * 0.002;
+                camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = performance.now() * 0.001;
+            const deltaTime = 0.016;
+            
+            materials.forEach(mat => {
+                mat.uniforms.time.value = time;
+            });
+
+            if (autoCorruption) {
+                hellFactor += corruptionSpeed * corruptionDirection;
+                
+                if (hellFactor >= 1.0) {
+                    hellFactor = 1.0;
+                    corruptionDirection = -1;
+                } else if (hellFactor <= 0.0) {
+                    hellFactor = 0.0;
+                    corruptionDirection = 1;
+                }
+                
+                updateHellFactor();
+            }
+
+            if (cinematicMode) {
+                cameraTransitionTime += deltaTime;
+                
+                if (cameraTransitionTime > cameraHoldDuration + cameraTransitionDuration) {
+                    setCinematicAngle(currentCameraIndex + 1);
+                }
+                
+                const transitionProgress = Math.min(cameraTransitionTime / cameraTransitionDuration, 1);
+                const easeProgress = transitionProgress < 0.5 
+                    ? 2 * transitionProgress * transitionProgress 
+                    : 1 - Math.pow(-2 * transitionProgress + 2, 2) / 2;
+                
+                camera.position.lerp(targetCameraPos, easeProgress * 0.1);
+                currentCameraLookAt.lerp(targetCameraLookAt, easeProgress * 0.1);
+                camera.lookAt(currentCameraLookAt);
+            } else {
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveRight) - Number(moveLeft);
+                direction.normalize();
+
+                if (moveForward || moveBackward) {
+                    velocity.z = direction.z * speed;
+                    camera.position.x -= velocity.z * Math.sin(camera.rotation.y);
+                    camera.position.z -= velocity.z * Math.cos(camera.rotation.y);
+                }
+                if (moveLeft || moveRight) {
+                    velocity.x = direction.x * speed;
+                    camera.position.x += velocity.x * Math.cos(camera.rotation.y);
+                    camera.position.z += velocity.x * Math.sin(camera.rotation.y);
+                }
+
+                camera.position.x = Math.max(-4.5, Math.min(4.5, camera.position.x));
+                camera.position.z = Math.max(-4.5, Math.min(4.5, camera.position.z));
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
