@@ -85,14 +85,19 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       maxZ: 2.5 + 0.4
     };
 
+
+    // This is a bad way to do it - we will have many cards 
+    // and other items later with different positions/sizes.
+    // We want to track the card position from the Card component instead.
+
     // Card bounds - positioned in top right corner of receptacle
     // Card dimensions: width 0.065, length 0.095
     // Position: receptacle position [1.5, 0.02, 2.5], offset to top-right
     const CARD_BOUNDS = {
-      minX: 1.5 + 0.6 - 0.065 - 0.05, // Right edge minus card width minus small margin
-      maxX: 1.5 + 0.6 - 0.05, // Right edge minus small margin
-      minZ: 2.5 - 0.4 + 0.05, // Top edge plus small margin
-      maxZ: 2.5 - 0.4 + 0.05 + 0.095 // Top edge plus margin plus card length
+      minX: -100.5 + 0.6 - 0.065 - 0.05, // Right edge minus card width minus small margin
+      maxX: 100.5 + 0.6 - 0.05, // Right edge minus small margin
+      minZ: -200.5 - 0.4 + 0.05, // Top edge plus small margin
+      maxZ: 200.5 - 0.4 + 0.05 + 0.095 // Top edge plus margin plus card length
     };
 
     const roomBounds = { minX: -4, maxX: 4, minZ: -4, maxZ: 4 };

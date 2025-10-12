@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useInput } from '../systems/inputSystem';
+import { type GamePhase } from '../systems/gameStateSystem';
 
 interface DevPanelProps {
   cameraName: string;
@@ -15,6 +16,11 @@ interface DevPanelProps {
   diceShaderEnabled: boolean;
   cardEnabled: boolean;
   diceOnCard: number[];
+  timeOfDay: 'morning' | 'midday' | 'night';
+  daysMarked: number;
+  successfulRolls: number;
+  currentAttempts: number;
+  gamePhase: GamePhase;
   onDiceCountChange: (count: number) => void;
   onCoinCountChange: (count: number) => void;
   onD3CountChange: (count: number) => void;
@@ -22,9 +28,10 @@ interface DevPanelProps {
   onThumbTackCountChange: (count: number) => void;
   onDiceShaderToggle: () => void;
   onCardToggle: () => void;
+  onTestSuccessfulRoll?: () => void;
 }
 
-export function DevPanel({ cameraName, cinematicMode, hellFactor, autoCorruption, diceCount, coinCount, d3Count, d4Count, thumbTackCount, diceScore, diceShaderEnabled, cardEnabled, diceOnCard, onDiceCountChange, onCoinCountChange, onD3CountChange, onD4CountChange, onThumbTackCountChange, onDiceShaderToggle, onCardToggle }: DevPanelProps) {
+export function DevPanel({ cameraName, cinematicMode, hellFactor, autoCorruption, diceCount, coinCount, d3Count, d4Count, thumbTackCount, diceScore, diceShaderEnabled, cardEnabled, diceOnCard, timeOfDay, daysMarked, successfulRolls, currentAttempts, gamePhase, onDiceCountChange, onCoinCountChange, onD3CountChange, onD4CountChange, onThumbTackCountChange, onDiceShaderToggle, onCardToggle, onTestSuccessfulRoll }: DevPanelProps) {
   const [visible, setVisible] = useState(true);
 
   useInput({
@@ -58,7 +65,7 @@ export function DevPanel({ cameraName, cinematicMode, hellFactor, autoCorruption
         paddingBottom: '10px',
         letterSpacing: '2px'
       }}>
-        🎮 PS1 HORROR BEDROOM - DEV PANEL
+        🎮  DEV PANEL
       </div>
 
       {/* Status Section */}
@@ -98,6 +105,89 @@ export function DevPanel({ cameraName, cinematicMode, hellFactor, autoCorruption
               {autoCorruption ? 'ON' : 'OFF'}
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* Time Passage Section */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{
+          fontSize: '12px',
+          color: '#888',
+          marginBottom: '8px',
+          letterSpacing: '1px'
+        }}>
+          TIME PASSAGE
+        </div>
+        <div style={{ paddingLeft: '10px' }}>
+          <div style={{ marginBottom: '8px' }}>
+            <span style={{ color: '#888' }}>Game Phase:</span>{' '}
+            <span style={{
+              color: gamePhase === 'idle' ? '#666' :
+                     gamePhase === 'throwing' ? '#ff9900' :
+                     gamePhase === 'settled' ? '#ffcc00' : '#00aaff',
+              fontWeight: 'bold',
+              fontSize: '11px'
+            }}>
+              {gamePhase.toUpperCase()}
+            </span>
+          </div>
+          <div style={{ marginBottom: '8px' }}>
+            <span style={{ color: '#888' }}>Time of Day:</span>{' '}
+            <span style={{
+              color: timeOfDay === 'morning' ? '#ffcc00' : timeOfDay === 'midday' ? '#ff9900' : '#6666ff',
+              fontWeight: 'bold'
+            }}>
+              {timeOfDay.toUpperCase()}
+            </span>
+          </div>
+          <div style={{ marginBottom: '8px' }}>
+            <span style={{ color: '#888' }}>Calendar Day:</span>{' '}
+            <span style={{ color: '#00ff00', fontWeight: 'bold' }}>
+              {daysMarked}
+            </span>
+            <span style={{ color: '#666', fontSize: '11px' }}> / 31</span>
+          </div>
+          <div style={{ marginBottom: '8px' }}>
+            <span style={{ color: '#888' }}>Roll Progress:</span>{' '}
+            <span style={{
+              color: (successfulRolls % 3) >= 2 ? '#00ff00' : '#ffcc00',
+              fontWeight: 'bold'
+            }}>
+              {successfulRolls % 3}
+            </span>
+            <span style={{ color: '#666' }}> / 3</span>
+          </div>
+          <div style={{ marginBottom: '8px' }}>
+            <span style={{ color: '#888' }}>Current Attempts:</span>{' '}
+            <span style={{
+              color: currentAttempts >= 3 ? '#ff0000' : currentAttempts >= 2 ? '#ffcc00' : '#00ff00',
+              fontWeight: 'bold'
+            }}>
+              {currentAttempts}
+            </span>
+            <span style={{ color: '#666' }}> / 3</span>
+          </div>
+          {onTestSuccessfulRoll && (
+            <div style={{ marginTop: '12px' }}>
+              <button
+                onClick={onTestSuccessfulRoll}
+                style={{
+                  background: '#1a4d1a',
+                  border: '1px solid #00ff00',
+                  color: '#00ff00',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                  borderRadius: '3px',
+                  fontFamily: 'Consolas, Monaco, monospace',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  width: '100%',
+                }}
+              >
+                🧪 TEST: Trigger Successful Roll
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

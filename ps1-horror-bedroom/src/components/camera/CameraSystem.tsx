@@ -130,7 +130,7 @@ export function CameraSystem({
     <PerspectiveCamera
       ref={cameraRef}
       makeDefault
-      fov={60}
+      fov={45}
       near={0.05}
       far={40}
       position={[0, 1.6, 5]}

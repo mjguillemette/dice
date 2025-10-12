@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useReducer, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import Scene from './components/Scene';
 import DevPanel from './components/DevPanel';
+import { gameStateReducer, initialGameState } from './systems/gameStateSystem';
 import './App.css';
 
 function App() {
@@ -19,6 +20,41 @@ function App() {
   const [cardEnabled, setCardEnabled] = useState(false);
   const [diceOnCard, setDiceOnCard] = useState<number[]>([]);
 
+  // Game state machine
+  const [gameState, dispatch] = useReducer(gameStateReducer, initialGameState);
+
+  console.log('🎮 App render - Game State:', {
+    phase: gameState.phase,
+    timeOfDay: gameState.timeOfDay,
+    daysMarked: gameState.daysMarked,
+    successfulRolls: gameState.successfulRolls,
+    currentAttempts: gameState.currentAttempts,
+  });
+
+  // Handle successful roll completion (all dice settled in receptacle)
+  const handleSuccessfulRoll = useCallback(() => {
+    console.log('✅ App: Successful roll detected');
+    dispatch({ type: 'SUCCESSFUL_ROLL' });
+  }, []);
+
+  // Handle failed roll (some dice outside receptacle)
+  const handleFailedRoll = useCallback(() => {
+    console.log('❌ App: Failed roll detected');
+    dispatch({ type: 'FAILED_ROLL' });
+  }, []);
+
+  // Handle dice throw attempt
+  const handleAttempt = useCallback(() => {
+    console.log('🎲 App: Throw attempt');
+    dispatch({ type: 'THROW_DICE' });
+  }, []);
+
+  // Handle dice settled
+  const handleDiceSettled = useCallback(() => {
+    console.log('⏸️ App: Dice settled');
+    dispatch({ type: 'DICE_SETTLED' });
+  }, []);
+
   return (
     <div style={{ width: '100vw', height: '100vh', margin: 0, padding: 0, overflow: 'hidden' }}>
       <Canvas
@@ -30,6 +66,7 @@ function App() {
           display: 'block',
           imageRendering: 'pixelated',
         }}
+        dpr={0.5}
       >
         <Scene
           onCameraNameChange={setCameraName}
@@ -45,6 +82,11 @@ function App() {
           diceShaderEnabled={diceShaderEnabled}
           cardEnabled={cardEnabled}
           onCardItemsChange={setDiceOnCard}
+          onSuccessfulRoll={handleSuccessfulRoll}
+          onFailedRoll={handleFailedRoll}
+          onAttempt={handleAttempt}
+          onDiceSettled={handleDiceSettled}
+          daysMarked={gameState.daysMarked}
         />
       </Canvas>
       <DevPanel
@@ -61,6 +103,11 @@ function App() {
         diceShaderEnabled={diceShaderEnabled}
         cardEnabled={cardEnabled}
         diceOnCard={diceOnCard}
+        timeOfDay={gameState.timeOfDay}
+        daysMarked={gameState.daysMarked}
+        successfulRolls={gameState.successfulRolls}
+        currentAttempts={gameState.currentAttempts}
+        gamePhase={gameState.phase}
         onDiceCountChange={setDiceCount}
         onCoinCountChange={setCoinCount}
         onD3CountChange={setD3Count}
@@ -68,6 +115,7 @@ function App() {
         onThumbTackCountChange={setThumbTackCount}
         onDiceShaderToggle={() => setDiceShaderEnabled(!diceShaderEnabled)}
         onCardToggle={() => setCardEnabled(!cardEnabled)}
+        onTestSuccessfulRoll={handleSuccessfulRoll}
       />
     </div>
   );

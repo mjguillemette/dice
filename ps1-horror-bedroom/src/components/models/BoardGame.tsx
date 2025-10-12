@@ -2,12 +2,12 @@ import { useCorruptionMaterial } from '../../hooks/useCorruptionMaterial';
 import { useLoader } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
-import { useState } from 'react';
 import boardTexture from '../../assets/textures/board.png';
 
 interface BoardGameProps {
   position: [number, number, number];
   hellFactor: number;
+  daysMarked: number;
 }
 
 /**
@@ -15,9 +15,9 @@ interface BoardGameProps {
  *
  * A calendar board with a 7x5 grid (35 days) where dates can be X'd out
  */
-export function BoardGame({ position, hellFactor }: BoardGameProps) {
-  // Track which dates are X'd out (array of crossed-out date numbers)
-  const [crossedOutDates, setCrossedOutDates] = useState<Set<number>>(new Set([1,2])); // Start with Oct 10 crossed out
+export function BoardGame({ position, hellFactor, daysMarked }: BoardGameProps) {
+  // Create a set of marked dates from 1 to daysMarked
+  const crossedOutDates = new Set(Array.from({ length: daysMarked }, (_, i) => i + 1));
 
   // Days 32-35 are blacked out (October only has 31 days)
   const blackedOutDates = new Set([32, 33, 34, 35]);
