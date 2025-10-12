@@ -11,6 +11,10 @@ import normalTexture4 from '../../assets/textures/normal-4.png';
 import normalTexture5 from '../../assets/textures/normal-5.png';
 import normalTexture6 from '../../assets/textures/normal-6.png';
 
+// Import coin textures
+import coinHeadsTexture from '../../assets/textures/coinheads.png';
+import coinTailsTexture from '../../assets/textures/cointails.png';
+
 interface DiceProps {
   position: [number, number, number];
   initialVelocity?: [number, number, number];
@@ -19,6 +23,7 @@ interface DiceProps {
   shaderEnabled: boolean;
   maxValue?: number; // 1 for thumbtack, 2 for coin, 3 for d3, 4 for d4, 6 for d6 (default)
   outOfBounds?: boolean; // Whether dice is out of bounds (red tint)
+  onCard?: boolean; // Whether dice is on a card (blue tint)
 }
 
 export interface DiceHandle {
@@ -33,7 +38,8 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
   onSettled,
   shaderEnabled,
   maxValue = 6,
-  outOfBounds = false
+  outOfBounds = false,
+  onCard = false
 }, ref) => {
   const rigidBodyRef = useRef<RapierRigidBody>(null);
   const meshRef = useRef<THREE.Mesh>(null);
@@ -41,6 +47,9 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
   const [diceValue, setDiceValue] = useState(1);
   const settledTimeRef = useRef(0);
   const pulseTimeRef = useRef(0);
+  const creationTimeRef = useRef(0);
+  const hasSettledRef = useRef(false); // Track if we've already called onSettled
+  const TIMEOUT_DURATION = 2.0; // 2 seconds timeout
 
   // Expose methods to parent
   useImperativeHandle(ref, () => ({
@@ -49,7 +58,7 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
   }));
 
   useEffect(() => {
-    if (rigidBodyRef.current) {
+    if (rigidBodyRef.current && !hasSettledRef.current) {
       console.log('Dice created at position:', position, 'with velocity:', initialVelocity);
       rigidBodyRef.current.setLinvel(
         { x: initialVelocity[0], y: initialVelocity[1], z: initialVelocity[2] },
@@ -59,12 +68,43 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
         { x: initialAngularVelocity[0], y: initialAngularVelocity[1], z: initialAngularVelocity[2] },
         true
       );
+      // Track creation time for timeout (only on first creation)
+      if (creationTimeRef.current === 0) {
+        creationTimeRef.current = performance.now() / 1000; // Convert to seconds
+      }
     }
   }, [initialVelocity, initialAngularVelocity, position]);
 
   // Check if dice has settled
   useFrame(() => {
     if (!rigidBodyRef.current || settled) return;
+
+    const currentTime = performance.now() / 1000; // Convert to seconds
+    const elapsedTime = currentTime - creationTimeRef.current;
+
+    // Check for 2-second timeout - force settle as out of bounds
+    if (elapsedTime > TIMEOUT_DURATION && !hasSettledRef.current) {
+      console.log('Dice timeout - forcing settle as out of bounds after 2 seconds');
+      setSettled(true);
+      hasSettledRef.current = true;
+
+      // Calculate which face is up
+      const rotation = rigidBodyRef.current.rotation();
+      const quaternion = new THREE.Quaternion(rotation.x, rotation.y, rotation.z, rotation.w);
+      const value = getTopFace(quaternion);
+      setDiceValue(value);
+
+      // Get current position
+      const pos = rigidBodyRef.current.translation();
+      const position = new THREE.Vector3(pos.x, pos.y, pos.z);
+
+      console.log('Dice force-settled (timeout) with value:', value, 'at position:', position);
+
+      if (onSettled) {
+        onSettled(value, position);
+      }
+      return;
+    }
 
     const linvel = rigidBodyRef.current.linvel();
     const angvel = rigidBodyRef.current.angvel();
@@ -77,8 +117,9 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
       settledTimeRef.current += 0.016; // ~60fps
 
       // Wait 0.3 seconds of being still before considering it settled
-      if (settledTimeRef.current > 0.3) {
+      if (settledTimeRef.current > 0.3 && !hasSettledRef.current) {
         setSettled(true);
+        hasSettledRef.current = true;
 
         // Calculate which face is up
         const rotation = rigidBodyRef.current.rotation();
@@ -173,8 +214,8 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
 
   const diceSize = 0.05; // 20% of original size - very small dice
 
-  // Only load textures for D6
-  const textures = maxValue === 6 ? useLoader(THREE.TextureLoader, [
+  // Load textures for D6
+  const d6Textures = maxValue === 6 ? useLoader(THREE.TextureLoader, [
     normalTexture1,
     normalTexture2,
     normalTexture3,
@@ -183,23 +224,29 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
     normalTexture6,
   ]) : [];
 
+  // Load textures for coin
+  const coinTextures = maxValue === 2 ? useLoader(THREE.TextureLoader, [
+    coinHeadsTexture,
+    coinTailsTexture,
+  ]) : [];
+
   // Create materials based on dice type
   const materials = useMemo(() => {
     // D6 - Use textures
-    if (maxValue === 6 && textures.length > 0) {
-      textures.forEach(texture => {
+    if (maxValue === 6 && d6Textures.length > 0) {
+      d6Textures.forEach(texture => {
         texture.magFilter = THREE.NearestFilter;
         texture.minFilter = THREE.NearestFilter;
         texture.generateMipmaps = false;
       });
 
       return [
-        new THREE.MeshStandardMaterial({ map: textures[0], roughness: 0.3, metalness: 0.1 }),
-        new THREE.MeshStandardMaterial({ map: textures[5], roughness: 0.3, metalness: 0.1 }),
-        new THREE.MeshStandardMaterial({ map: textures[1], roughness: 0.3, metalness: 0.1 }),
-        new THREE.MeshStandardMaterial({ map: textures[4], roughness: 0.3, metalness: 0.1 }),
-        new THREE.MeshStandardMaterial({ map: textures[2], roughness: 0.3, metalness: 0.1 }),
-        new THREE.MeshStandardMaterial({ map: textures[3], roughness: 0.3, metalness: 0.1 }),
+        new THREE.MeshStandardMaterial({ map: d6Textures[0], roughness: 0.3, metalness: 0.1 }),
+        new THREE.MeshStandardMaterial({ map: d6Textures[5], roughness: 0.3, metalness: 0.1 }),
+        new THREE.MeshStandardMaterial({ map: d6Textures[1], roughness: 0.3, metalness: 0.1 }),
+        new THREE.MeshStandardMaterial({ map: d6Textures[4], roughness: 0.3, metalness: 0.1 }),
+        new THREE.MeshStandardMaterial({ map: d6Textures[2], roughness: 0.3, metalness: 0.1 }),
+        new THREE.MeshStandardMaterial({ map: d6Textures[3], roughness: 0.3, metalness: 0.1 }),
       ];
     }
 
@@ -212,7 +259,23 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
       });
     }
 
-    // Coin - Flat cylinder, gold color
+    // Coin - Flat cylinder with heads/tails textures
+    if (maxValue === 2 && coinTextures.length > 0) {
+      coinTextures.forEach(texture => {
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        texture.generateMipmaps = false;
+      });
+
+      // CylinderGeometry material order: [side, top cap, bottom cap]
+      return [
+        new THREE.MeshStandardMaterial({ map: coinTextures[0], roughness: 0.2, metalness: 0.8 }), // Side - heads texture edge
+        new THREE.MeshStandardMaterial({ map: coinTextures[0], roughness: 0.2, metalness: 0.8 }), // Top - heads
+        new THREE.MeshStandardMaterial({ map: coinTextures[1], roughness: 0.2, metalness: 0.8 }), // Bottom - tails
+      ];
+    }
+
+    // Coin fallback (if textures not loaded)
     if (maxValue === 2) {
       return new THREE.MeshStandardMaterial({
         color: '#FFD700',
@@ -245,9 +308,9 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
       roughness: 0.3,
       metalness: 0.1,
     });
-  }, [maxValue, textures]);
+  }, [maxValue, d6Textures, coinTextures]);
 
-  // Animate pulse effect when settled (only if shader is enabled) and red tint for out of bounds
+  // Animate pulse effect when settled (only if shader is enabled) and colored tints for special states
   useFrame((state) => {
     if (meshRef.current) {
       const material = meshRef.current.material;
@@ -261,11 +324,22 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
             mat.emissiveIntensity = 0.6;
           }
         });
+      } else if (onCard && settled && shaderEnabled) {
+        // Blue pulsing tint for dice on card
+        pulseTimeRef.current += 0.05;
+        const pulse = Math.sin(pulseTimeRef.current) * 0.5 + 0.5;
+
+        meshMaterials.forEach(mat => {
+          if (mat instanceof THREE.MeshStandardMaterial) {
+            mat.emissive.setHex(0x0066ff); // Blue
+            mat.emissiveIntensity = 0.3 + pulse * 0.5;
+          }
+        });
       } else if (settled && shaderEnabled) {
         pulseTimeRef.current += 0.05;
         const pulse = Math.sin(pulseTimeRef.current) * 0.5 + 0.5;
 
-        // Pulsing glow effect on all materials
+        // Pulsing green glow effect on all materials
         meshMaterials.forEach(mat => {
           if (mat instanceof THREE.MeshStandardMaterial) {
             mat.emissive.setHex(0x00ff00);

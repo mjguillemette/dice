@@ -17,6 +17,7 @@ import Decorations from './models/Decorations';
 import Ashtray from './models/Ashtray';
 import BoardGame from './models/BoardGame';
 import DiceReceptacle from './models/DiceReceptacle';
+import Card from './models/Card';
 import House from './house/House';
 import DiceManager, { type DiceManagerHandle } from './models/DiceManager';
 
@@ -32,13 +33,16 @@ interface SceneProps {
   thumbTackCount: number;
   onDiceScoreChange: (score: number) => void;
   diceShaderEnabled: boolean;
+  cardEnabled: boolean;
+  onCardItemsChange: (diceOnCard: number[]) => void;
 }
 
-export function Scene({ onCameraNameChange, onCameraModeChange, onHellFactorChange, onAutoCorruptionChange, diceCount, coinCount, d3Count, d4Count, thumbTackCount, onDiceScoreChange, diceShaderEnabled }: SceneProps) {
+export function Scene({ onCameraNameChange, onCameraModeChange, onHellFactorChange, onAutoCorruptionChange, diceCount, coinCount, d3Count, d4Count, thumbTackCount, onDiceScoreChange, diceShaderEnabled, cardEnabled, onCardItemsChange }: SceneProps) {
   const { scene, camera, gl } = useThree();
   const [cinematicMode, setCinematicMode] = useState(true);
   const cameraRef = useRef(camera);
   const diceManagerRef = useRef<DiceManagerHandle>(null);
+  const [hasItemsOnCard, setHasItemsOnCard] = useState(false);
 
   // Store yaw (left/right) and pitch (up/down) separately for FPS camera
   const yawRef = useRef(0);
@@ -67,6 +71,12 @@ export function Scene({ onCameraNameChange, onCameraModeChange, onHellFactorChan
   useEffect(() => {
     onAutoCorruptionChange(autoCorruption);
   }, [autoCorruption, onAutoCorruptionChange]);
+
+  // Callback for card items change that updates both parent and local state
+  const handleCardItemsChange = useCallback((diceIds: number[]) => {
+    setHasItemsOnCard(diceIds.length > 0);
+    onCardItemsChange(diceIds);
+  }, [onCardItemsChange]);
 
   const toggleCamera = useCallback(() => {
     const newMode = !cinematicMode;
@@ -142,6 +152,14 @@ export function Scene({ onCameraNameChange, onCameraModeChange, onHellFactorChan
     cameraRef.current = camera;
   }, [camera]);
 
+  // Reset dice when throwable counts change in DevPanel
+  useEffect(() => {
+    if (diceManagerRef.current) {
+      console.log('Dice counts changed - resetting all dice');
+      diceManagerRef.current.resetDice();
+    }
+  }, [diceCount, coinCount, d3Count, d4Count, thumbTackCount]);
+
   // Handle click to throw dice or pick up outside dice
   const handleClick = useCallback((event: MouseEvent) => {
     console.log('Click detected! Pointer locked:', !!document.pointerLockElement);
@@ -151,11 +169,17 @@ export function Scene({ onCameraNameChange, onCameraModeChange, onHellFactorChan
     // Priority 1: If there are settled dice, pick them up first
     if (diceManagerRef.current.hasSettledDice()) {
       const pickedUp = diceManagerRef.current.pickUpOutsideDice();
-      console.log('Picked up', pickedUp, 'dice');
-      return; // Always return after picking up - next click will throw
+      console.log('Picked up', pickedUp, 'dice - next click will throw');
+      return; // ALWAYS return after picking up - prevents both actions in one click
     }
 
-    // Priority 2: Throw dice (either from re-throw queue or fresh)
+    // Priority 2: Check if we can throw (not debounced)
+    if (!diceManagerRef.current.canThrow()) {
+      console.log('Cannot throw - debounce active');
+      return;
+    }
+
+    // Priority 3: Throw dice (either from re-throw queue or fresh)
     // Get the camera's current position and direction
     const cameraPosition = camera.position.clone();
     const direction = new THREE.Vector3();
@@ -244,6 +268,8 @@ export function Scene({ onCameraNameChange, onCameraModeChange, onHellFactorChan
           thumbTackCount={thumbTackCount}
           onScoreUpdate={onDiceScoreChange}
           shaderEnabled={diceShaderEnabled}
+          cardEnabled={cardEnabled}
+          onCardItemsChange={handleCardItemsChange}
         />
 
         {/* Ground plane - using explicit CuboidCollider */}
@@ -317,8 +343,15 @@ export function Scene({ onCameraNameChange, onCameraModeChange, onHellFactorChan
       <CeilingLight hellFactor={hellFactor} />
       <Decorations hellFactor={hellFactor} />
       <Ashtray hellFactor={hellFactor} />
-      <BoardGame position={[1.5, 0.05, 1.5]} hellFactor={hellFactor} />
+      <BoardGame position={[2.5, 0.05, 2.38]} hellFactor={hellFactor} />
       <DiceReceptacle position={[1.5, 0.02, 2.5]} hellFactor={hellFactor} />
+      {cardEnabled && (
+        <Card
+          position={[1.73, 0.063, 3.04]}
+          hellFactor={hellFactor}
+          hasItemOnTop={hasItemsOnCard}
+        />
+      )}
     </>
   );
 }

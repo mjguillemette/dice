@@ -1,17 +1,30 @@
-import { useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { useThree } from '@react-three/fiber';
-import * as THREE from 'three';
-import Dice, { type DiceHandle } from './Dice';
+import {
+  useRef,
+  useState,
+  useCallback,
+  forwardRef,
+  useImperativeHandle
+} from "react";
+import * as THREE from "three";
+import Dice, { type DiceHandle } from "./Dice";
+
+type DiceStatus =
+  | "inHand"
+  | "thrown"
+  | "settledInReceptacle"
+  | "settledOutOfBounds";
 
 interface DiceInstance {
   id: number;
-  type: 'd6' | 'coin' | 'd3' | 'd4' | 'thumbtack';
-  position: [number, number, number];
-  initialVelocity: [number, number, number];
-  initialAngularVelocity: [number, number, number];
+  type: "d6" | "coin" | "d3" | "d4" | "thumbtack";
+  position?: [number, number, number]; // present while thrown/settled
+  initialVelocity?: [number, number, number];
+  initialAngularVelocity?: [number, number, number];
   value?: number;
   settled: boolean;
-  inReceptacle: boolean; // Whether dice landed in receptacle
+  inReceptacle: boolean;
+  generation: number;
+  status: DiceStatus;
 }
 
 interface DiceManagerProps {
@@ -22,254 +35,360 @@ interface DiceManagerProps {
   thumbTackCount: number;
   onScoreUpdate?: (score: number) => void;
   shaderEnabled: boolean;
+  cardEnabled: boolean; // Whether the card is placed on the receptacle
+  onCardItemsChange?: (diceOnCard: number[]) => void; // Callback with dice IDs on card
 }
 
 export interface DiceManagerHandle {
-  throwDice: (clickPosition: THREE.Vector3, throwOrigin?: THREE.Vector3, chargeAmount?: number) => void;
+  throwDice: (
+    clickPosition: THREE.Vector3,
+    throwOrigin?: THREE.Vector3,
+    chargeAmount?: number
+  ) => void;
   clearDice: () => void;
   getCurrentScore: () => number;
-  pickUpOutsideDice: () => number; // Returns count of picked up dice
-  hasSettledDice: () => boolean; // Check if any dice have settled
-  canThrow: () => boolean; // Check if we can throw (not debounced)
+  pickUpOutsideDice: () => number;
+  hasSettledDice: () => boolean;
+  canThrow: () => boolean;
+  resetDice: () => void; // Reset all dice and clear state
 }
 
 const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
-  ({ diceCount, coinCount, d3Count, d4Count, thumbTackCount, onScoreUpdate, shaderEnabled }, ref) => {
+  (
+    {
+      diceCount,
+      coinCount,
+      d3Count,
+      d4Count,
+      thumbTackCount,
+      onScoreUpdate,
+      shaderEnabled,
+      cardEnabled,
+      onCardItemsChange
+    },
+    ref
+  ) => {
     const [diceInstances, setDiceInstances] = useState<DiceInstance[]>([]);
     const diceRefs = useRef<Map<number, DiceHandle>>(new Map());
     const nextIdRef = useRef(0);
-    const { camera, raycaster } = useThree();
+    const generationRef = useRef(0);
+    const totalScoreRef = useRef(0);
+    const scoredDiceIds = useRef<Set<number>>(new Set()); // Track which dice have been scored
+    const diceOnCardRef = useRef<Set<number>>(new Set()); // Track which dice are on the card
+    const [isThrowing, setIsThrowing] = useState(false);
+    const throwDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Receptacle bounds (position [1.5, 0.02, 2.5], size 1.2 x 0.8)
-    const RECEPTACLE_CENTER = { x: 1.5, z: 2.5 };
     const RECEPTACLE_BOUNDS = {
-      minX: RECEPTACLE_CENTER.x - 0.6, // 1.5 - 0.6 = 0.9
-      maxX: RECEPTACLE_CENTER.x + 0.6, // 1.5 + 0.6 = 2.1
-      minZ: RECEPTACLE_CENTER.z - 0.4, // 2.5 - 0.4 = 2.1
-      maxZ: RECEPTACLE_CENTER.z + 0.4  // 2.5 + 0.4 = 2.9
+      minX: 1.5 - 0.6,
+      maxX: 1.5 + 0.6,
+      minZ: 2.5 - 0.4,
+      maxZ: 2.5 + 0.4
     };
 
-    // Track dice counts to re-throw (from picked up dice)
-    const [diceToReThrow, setDiceToReThrow] = useState({
-      d6: 0,
-      coin: 0,
-      d3: 0,
-      d4: 0,
-      thumbtack: 0
-    });
+    // Card bounds - positioned in top right corner of receptacle
+    // Card dimensions: width 0.065, length 0.095
+    // Position: receptacle position [1.5, 0.02, 2.5], offset to top-right
+    const CARD_BOUNDS = {
+      minX: 1.5 + 0.6 - 0.065 - 0.05, // Right edge minus card width minus small margin
+      maxX: 1.5 + 0.6 - 0.05, // Right edge minus small margin
+      minZ: 2.5 - 0.4 + 0.05, // Top edge plus small margin
+      maxZ: 2.5 - 0.4 + 0.05 + 0.095 // Top edge plus margin plus card length
+    };
 
-    // Track if we're currently throwing (for debounce)
-    const [isThrowing, setIsThrowing] = useState(false);
-    const throwDebounceRef = useRef<NodeJS.Timeout | null>(null);
+    const roomBounds = { minX: -4, maxX: 4, minZ: -4, maxZ: 4 };
 
+    const getMaxValue = (type: DiceInstance["type"]): number => {
+      switch (type) {
+        case "thumbtack":
+          return 1;
+        case "coin":
+          return 2;
+        case "d3":
+          return 3;
+        case "d4":
+          return 4;
+        case "d6":
+        default:
+          return 6;
+      }
+    };
+
+    const createDieObject = (
+      type: DiceInstance["type"],
+      generation: number,
+      origin: THREE.Vector3,
+      clickPosition: THREE.Vector3
+    ) => {
+      const spreadRadius = 0.02 + Math.random() * 0.05;
+      const angle = Math.random() * Math.PI * 2;
+      const offsetX = Math.cos(angle) * spreadRadius;
+      const offsetZ = Math.sin(angle) * spreadRadius;
+
+      const position: [number, number, number] = [
+        origin.x + offsetX,
+        origin.y,
+        origin.z + offsetZ
+      ];
+
+      // Use the actual click position as the target, with slight randomness for spread
+      const targetX = clickPosition.x + (Math.random() - 0.5) * 0.3;
+      const targetZ = clickPosition.z + (Math.random() - 0.5) * 0.3;
+      const directionX = targetX - position[0];
+      const directionZ = targetZ - position[2];
+      const distance =
+        Math.sqrt(directionX * directionX + directionZ * directionZ) || 1;
+
+      // Scale throw power based on distance for more natural feel
+      const basePower = 2.5;
+      const distanceMultiplier = Math.min(distance * 0.5, 2.0);
+      const throwPower = basePower + distanceMultiplier + Math.random() * 0.5;
+
+      const initialVelocity: [number, number, number] = [
+        (directionX / distance) * throwPower,
+        -0.5 - Math.random() * 0.3, // Slightly less downward for better arc
+        (directionZ / distance) * throwPower
+      ];
+
+      const initialAngularVelocity: [number, number, number] = [
+        (Math.random() - 0.5) * 15,
+        (Math.random() - 0.5) * 15,
+        (Math.random() - 0.5) * 15
+      ];
+
+      return {
+        id: nextIdRef.current++,
+        type,
+        position,
+        initialVelocity,
+        initialAngularVelocity,
+        settled: false,
+        inReceptacle: false,
+        generation,
+        status: "thrown" as DiceStatus
+      } as DiceInstance;
+    };
+
+    // Throw dice: either create all dice on first throw, or re-throw only dice that are 'inHand'
     const throwDice = useCallback(
-      (clickPosition: THREE.Vector3, throwOrigin?: THREE.Vector3, chargeAmount: number = 0.5) => {
-        // Debounce check - don't throw if recently threw
-        if (isThrowing) {
-          console.log('Cannot throw - debounce active');
-          return;
-        }
+      (
+        clickPosition: THREE.Vector3,
+        throwOrigin?: THREE.Vector3,
+        chargeAmount: number = 0.5
+      ) => {
+        // Basic debounce to avoid double throws; pickUp clears it so a pickUp->throw can happen instantly.
+        if (isThrowing) return;
 
-        // Set throwing state
+        generationRef.current += 1;
+        const thisGeneration = generationRef.current;
         setIsThrowing(true);
+        if (throwDebounceRef.current) clearTimeout(throwDebounceRef.current);
+        throwDebounceRef.current = setTimeout(() => setIsThrowing(false), 300);
 
-        // Use camera position if provided, otherwise use above target
-        const origin = throwOrigin || new THREE.Vector3(clickPosition.x, 1.2, clickPosition.z);
+        const origin =
+          throwOrigin ||
+          new THREE.Vector3(clickPosition.x, 1.2, clickPosition.z);
 
-        // Constrain click position to room bounds (room is 10x10, centered at 0,0)
-        const roomBounds = { minX: -4, maxX: 4, minZ: -4, maxZ: 4 };
-        const clampedX = Math.max(roomBounds.minX, Math.min(roomBounds.maxX, clickPosition.x));
-        const clampedZ = Math.max(roomBounds.minZ, Math.min(roomBounds.maxZ, clickPosition.z));
+        setDiceInstances((prev) => {
+          // If no dice exist yet, create full set of dice and throw them all
+          if (prev.length === 0) {
+            const created: DiceInstance[] = [];
+            for (let i = 0; i < diceCount; i++)
+              created.push(createDieObject("d6", thisGeneration, origin, clickPosition));
+            for (let i = 0; i < coinCount; i++)
+              created.push(createDieObject("coin", thisGeneration, origin, clickPosition));
+            for (let i = 0; i < d3Count; i++)
+              created.push(createDieObject("d3", thisGeneration, origin, clickPosition));
+            for (let i = 0; i < d4Count; i++)
+              created.push(createDieObject("d4", thisGeneration, origin, clickPosition));
+            for (let i = 0; i < thumbTackCount; i++)
+              created.push(
+                createDieObject("thumbtack", thisGeneration, origin, clickPosition)
+              );
+            return created;
+          }
 
-        // Helper function to create a dice instance
-        const createDiceInstance = (type: DiceInstance['type']) => {
-          const spreadRadius = 0.02 + Math.random() * 0.05;
-          const angle = Math.random() * Math.PI * 2;
-          const offsetX = Math.cos(angle) * spreadRadius;
-          const offsetZ = Math.sin(angle) * spreadRadius;
+          // Otherwise only transform dice that are 'inHand' -> 'thrown'
+          const next = prev.map((d) => {
+            if (d.status === "inHand") {
+              // prepare a thrown object using same id/type but new velocity/position
+              const spreadRadius = 0.02 + Math.random() * 0.05;
+              const angle = Math.random() * Math.PI * 2;
+              const offsetX = Math.cos(angle) * spreadRadius;
+              const offsetZ = Math.sin(angle) * spreadRadius;
+              const position: [number, number, number] = [
+                origin.x + offsetX,
+                origin.y,
+                origin.z + offsetZ
+              ];
 
-          const position: [number, number, number] = [
-            origin.x + offsetX,
-            origin.y,
-            origin.z + offsetZ,
-          ];
+              // Use the actual click position as the target
+              const targetX = clickPosition.x + (Math.random() - 0.5) * 0.3;
+              const targetZ = clickPosition.z + (Math.random() - 0.5) * 0.3;
+              const directionX = targetX - position[0];
+              const directionZ = targetZ - position[2];
+              const distance =
+                Math.sqrt(directionX * directionX + directionZ * directionZ) ||
+                1;
 
-          const targetX = clampedX + (Math.random() - 0.5) * 0.1;
-          const targetZ = clampedZ + (Math.random() - 0.5) * 0.1;
+              // Scale throw power based on distance
+              const basePower = 2.5;
+              const distanceMultiplier = Math.min(distance * 0.5, 2.0);
+              const throwPower = basePower + distanceMultiplier + Math.random() * 0.5;
 
-          const directionX = targetX - position[0];
-          const directionZ = targetZ - position[2];
-          const distance = Math.sqrt(directionX * directionX + directionZ * directionZ);
+              const initialVelocity: [number, number, number] = [
+                (directionX / distance) * throwPower,
+                -0.5 - Math.random() * 0.3,
+                (directionZ / distance) * throwPower
+              ];
 
-          const throwPower = 2.0 + Math.random() * 1.0;
-          const initialVelocity: [number, number, number] = [
-            (directionX / distance) * throwPower,
-            -1.0 - Math.random() * 0.5,
-            (directionZ / distance) * throwPower,
-          ];
+              const initialAngularVelocity: [number, number, number] = [
+                (Math.random() - 0.5) * 15,
+                (Math.random() - 0.5) * 15,
+                (Math.random() - 0.5) * 15
+              ];
 
-          const initialAngularVelocity: [number, number, number] = [
-            (Math.random() - 0.5) * 15,
-            (Math.random() - 0.5) * 15,
-            (Math.random() - 0.5) * 15,
-          ];
-
-          return {
-            id: nextIdRef.current++,
-            type,
-            position,
-            initialVelocity,
-            initialAngularVelocity,
-            settled: false,
-            inReceptacle: false,
-          };
-        };
-
-        // Use functional setState to access current values without dependencies
-        setDiceToReThrow(currentReThrow => {
-          setDiceInstances(currentInstances => {
-            // Keep existing dice that are in receptacle (they stay put)
-            // We DON'T mark them as unsettled because we need them for scoring
-            // Instead, we'll track them separately to exclude from pickup
-            const keptDice = currentInstances.filter(d => d.settled && d.inReceptacle);
-            const newDice: DiceInstance[] = [];
-
-            // Check if we have picked-up dice to re-throw
-            const totalReThrow = currentReThrow.d6 + currentReThrow.coin + currentReThrow.d3 + currentReThrow.d4 + currentReThrow.thumbtack;
-
-            if (totalReThrow > 0) {
-              console.log('DiceManager: re-throwing', totalReThrow, 'picked-up dice from', origin, 'to:', clampedX, clampedZ);
-              // Re-throw ONLY the picked-up dice
-              for (let i = 0; i < currentReThrow.d6; i++) {
-                newDice.push(createDiceInstance('d6'));
-              }
-              for (let i = 0; i < currentReThrow.coin; i++) {
-                newDice.push(createDiceInstance('coin'));
-              }
-              for (let i = 0; i < currentReThrow.d3; i++) {
-                newDice.push(createDiceInstance('d3'));
-              }
-              for (let i = 0; i < currentReThrow.d4; i++) {
-                newDice.push(createDiceInstance('d4'));
-              }
-              for (let i = 0; i < currentReThrow.thumbtack; i++) {
-                newDice.push(createDiceInstance('thumbtack'));
-              }
-            } else {
-              // Throw fresh dice from settings
-              const totalNewDice = diceCount + coinCount + d3Count + d4Count + thumbTackCount;
-              console.log('DiceManager: throwing', totalNewDice, 'new dice from', origin, 'to:', clampedX, clampedZ);
-              for (let i = 0; i < diceCount; i++) {
-                newDice.push(createDiceInstance('d6'));
-              }
-              for (let i = 0; i < coinCount; i++) {
-                newDice.push(createDiceInstance('coin'));
-              }
-              for (let i = 0; i < d3Count; i++) {
-                newDice.push(createDiceInstance('d3'));
-              }
-              for (let i = 0; i < d4Count; i++) {
-                newDice.push(createDiceInstance('d4'));
-              }
-              for (let i = 0; i < thumbTackCount; i++) {
-                newDice.push(createDiceInstance('thumbtack'));
-              }
+              return {
+                ...d,
+                position,
+                initialVelocity,
+                initialAngularVelocity,
+                settled: false,
+                inReceptacle: false,
+                generation: thisGeneration,
+                status: "thrown" as DiceStatus,
+                value: undefined
+              };
             }
-
-            console.log('DiceManager: created', newDice.length, 'new dice, keeping', keptDice.length, 'in receptacle');
-            return [...keptDice, ...newDice];
+            // keep others (thrown/settled) unchanged
+            return d;
           });
 
-          // Reset re-throw queue
-          return { d6: 0, coin: 0, d3: 0, d4: 0, thumbtack: 0 };
+          return next;
         });
       },
-      [diceCount, coinCount, d3Count, d4Count, thumbTackCount]
+      [isThrowing, diceCount, coinCount, d3Count, d4Count, thumbTackCount]
     );
 
+    // Clear all dice and reset score
     const clearDice = useCallback(() => {
       setDiceInstances([]);
-      if (onScoreUpdate) {
-        onScoreUpdate(0);
-      }
+      totalScoreRef.current = 0;
+      if (onScoreUpdate) onScoreUpdate(0);
     }, [onScoreUpdate]);
 
+    // Return total score (accumulated as dice land in the receptacle)
     const getCurrentScore = useCallback(() => {
-      let total = 0;
-      diceInstances.forEach((dice) => {
-        if (dice.value !== undefined && dice.inReceptacle) {
-          total += dice.value;
-        }
-      });
-      return total;
-    }, [diceInstances]);
+      return totalScoreRef.current;
+    }, []);
 
+    // Pick up any settled out-of-bounds dice (mark them inHand).
+    // If none outside and all dice are in the receptacle, pick up ALL for restart and reset score.
     const pickUpOutsideDice = useCallback(() => {
-      const settledDice = diceInstances.filter(d => d.settled);
-      const outsideDice = settledDice.filter(d => !d.inReceptacle);
-      const insideDice = settledDice.filter(d => d.inReceptacle);
+      // allow immediate rethrow after pickup
+      if (throwDebounceRef.current) {
+        clearTimeout(throwDebounceRef.current);
+        throwDebounceRef.current = null;
+      }
+      setIsThrowing(false);
 
-      // If there are outside dice, pick up ONLY those
-      if (outsideDice.length > 0) {
-        const counts = { d6: 0, coin: 0, d3: 0, d4: 0, thumbtack: 0 };
-        outsideDice.forEach(d => {
-          counts[d.type]++;
+      // Use current diceInstances snapshot
+      const settled = diceInstances.filter((d) => d.settled);
+      const outside = settled.filter((d) => !d.inReceptacle);
+      const inside = settled.filter((d) => d.inReceptacle);
+
+      if (outside.length > 0) {
+        // mark those as inHand so they can be thrown next
+        const outsideIds = new Set(outside.map((d) => d.id));
+
+        // Remove picked up dice from scored and card tracking
+        outsideIds.forEach(id => {
+          scoredDiceIds.current.delete(id);
+          diceOnCardRef.current.delete(id);
         });
 
-        console.log('Picking up', outsideDice.length, 'dice outside receptacle:', counts);
+        // Notify card change if any dice were removed from card
+        if (onCardItemsChange && diceOnCardRef.current.size >= 0) {
+          onCardItemsChange(Array.from(diceOnCardRef.current));
+        }
 
-        // Add to re-throw queue (don't reset - add to existing)
-        setDiceToReThrow(prev => ({
-          d6: prev.d6 + counts.d6,
-          coin: prev.coin + counts.coin,
-          d3: prev.d3 + counts.d3,
-          d4: prev.d4 + counts.d4,
-          thumbtack: prev.thumbtack + counts.thumbtack,
-        }));
-
-        // Remove outside dice from scene (keep only dice in receptacle)
-        setDiceInstances(prev => prev.filter(d => !d.settled || d.inReceptacle));
-
-        return outsideDice.length;
+        setDiceInstances((prev) =>
+          prev.map((d) =>
+            outsideIds.has(d.id)
+              ? {
+                  ...d,
+                  status: "inHand",
+                  settled: false,
+                  inReceptacle: false,
+                  position: undefined,
+                  initialVelocity: undefined,
+                  initialAngularVelocity: undefined,
+                  value: undefined
+                }
+              : d
+          )
+        );
+        return outside.length;
       }
 
-      // If ALL dice are in receptacle (no outside dice), pick up ALL for restart
-      if (insideDice.length > 0) {
-        const counts = { d6: 0, coin: 0, d3: 0, d4: 0, thumbtack: 0 };
-        insideDice.forEach(d => {
-          counts[d.type]++;
-        });
+      // If nothing outside, but all dice are in receptacle -> pick up all for restart
+      if (
+        diceInstances.length > 0 &&
+        diceInstances.every((d) => d.status === "settledInReceptacle")
+      ) {
+        // Clear all scored dice and card tracking for fresh round
+        scoredDiceIds.current.clear();
+        diceOnCardRef.current.clear();
 
-        console.log('All dice in receptacle! Picking up ALL', insideDice.length, 'dice for restart:', counts);
+        // Notify card change
+        if (onCardItemsChange) {
+          onCardItemsChange([]);
+        }
 
-        // REPLACE re-throw queue with all dice (fresh start)
-        setDiceToReThrow({
-          d6: counts.d6,
-          coin: counts.coin,
-          d3: counts.d3,
-          d4: counts.d4,
-          thumbtack: counts.thumbtack,
-        });
-
-        // Clear all dice from scene
-        setDiceInstances([]);
-
-        return insideDice.length;
+        setDiceInstances((prev) =>
+          prev.map((d) => ({
+            ...d,
+            status: "inHand",
+            settled: false,
+            inReceptacle: false,
+            position: undefined,
+            initialVelocity: undefined,
+            initialAngularVelocity: undefined,
+            value: undefined,
+            generation: 0
+          }))
+        );
+        // reset total score for new round
+        totalScoreRef.current = 0;
+        if (onScoreUpdate) onScoreUpdate(0);
+        return inside.length;
       }
 
       return 0;
-    }, [diceInstances]);
+    }, [diceInstances, onScoreUpdate]);
 
+    // Returns true if every die is settled (either in-bounds or out-of-bounds)
     const hasSettledDice = useCallback(() => {
-      // Check if ALL dice have settled (not just some)
-      // This prevents picking up kept dice before new dice settle
-      const allDiceSettled = diceInstances.length > 0 && diceInstances.every(d => d.settled);
-      return allDiceSettled;
+      return diceInstances.length > 0 && diceInstances.every((d) => d.settled);
     }, [diceInstances]);
 
-    const canThrow = useCallback(() => {
-      return !isThrowing;
-    }, [isThrowing]);
+    const canThrow = useCallback(() => !isThrowing, [isThrowing]);
+
+    // Reset all dice state (clear instances, reset score, reset IDs, clear debounce)
+    const resetDice = useCallback(() => {
+      setDiceInstances([]);
+      totalScoreRef.current = 0;
+      nextIdRef.current = 0; // Reset ID counter for new dice
+      generationRef.current = 0; // Reset generation counter
+      scoredDiceIds.current.clear(); // Clear scored dice tracking
+      diceOnCardRef.current.clear(); // Clear card tracking
+      setIsThrowing(false);
+      if (throwDebounceRef.current) {
+        clearTimeout(throwDebounceRef.current);
+        throwDebounceRef.current = null;
+      }
+      if (onScoreUpdate) onScoreUpdate(0);
+      if (onCardItemsChange) onCardItemsChange([]);
+    }, [onScoreUpdate, onCardItemsChange]);
 
     useImperativeHandle(ref, () => ({
       throwDice,
@@ -278,91 +397,121 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       pickUpOutsideDice,
       hasSettledDice,
       canThrow,
+      resetDice
     }));
 
+    // Called by each Dice component when it finishes settling.
     const handleDiceSettled = useCallback(
       (id: number, value: number, position: THREE.Vector3) => {
-        // Check if dice is in receptacle bounds
+        // Check if we've already scored this die using ref (outside of setState closure)
+        if (scoredDiceIds.current.has(id)) {
+          console.log('Die', id, 'already scored - skipping duplicate');
+          return;
+        }
+
         const inReceptacle =
           position.x >= RECEPTACLE_BOUNDS.minX &&
           position.x <= RECEPTACLE_BOUNDS.maxX &&
           position.z >= RECEPTACLE_BOUNDS.minZ &&
           position.z <= RECEPTACLE_BOUNDS.maxZ;
 
-        console.log('Dice', id, 'settled with value:', value, 'at', position, 'inReceptacle:', inReceptacle);
+        // Check if dice landed on the card (if card is enabled)
+        const onCard = cardEnabled &&
+          position.x >= CARD_BOUNDS.minX &&
+          position.x <= CARD_BOUNDS.maxX &&
+          position.z >= CARD_BOUNDS.minZ &&
+          position.z <= CARD_BOUNDS.maxZ;
+
+        // Update card tracking
+        if (onCard) {
+          diceOnCardRef.current.add(id);
+          if (onCardItemsChange) {
+            onCardItemsChange(Array.from(diceOnCardRef.current));
+          }
+          console.log('Die', id, 'landed on card! Dice on card:', Array.from(diceOnCardRef.current));
+        }
 
         setDiceInstances((prev) => {
-          const updated = prev.map((dice) =>
-            dice.id === id ? { ...dice, value, settled: true, inReceptacle } : dice
-          );
-
-          // Calculate total score (only dice in receptacle)
-          const allSettled = updated.every((d) => d.settled);
-          console.log('All settled?', allSettled, 'Updated dice:', updated);
-          if (allSettled && onScoreUpdate) {
-            const totalScore = updated.reduce((sum, d) => {
-              // Only count dice that are in the receptacle
-              return sum + (d.inReceptacle && d.value ? d.value : 0);
-            }, 0);
-            const inReceptacleCount = updated.filter(d => d.inReceptacle).length;
-            const outsideCount = updated.filter(d => !d.inReceptacle).length;
-            console.log('Total score:', totalScore, '(', inReceptacleCount, 'in receptacle,', outsideCount, 'outside)');
-            onScoreUpdate(totalScore);
-
-            // Clear throwing state after 3 seconds
-            if (throwDebounceRef.current) {
-              clearTimeout(throwDebounceRef.current);
-            }
-            throwDebounceRef.current = setTimeout(() => {
-              console.log('Debounce cleared - can throw again');
-              setIsThrowing(false);
-            }, 3000);
-          }
+          const updated = prev.map((d) => {
+            if (d.id !== id) return d;
+            // Update the die with settle info
+            const newStatus: DiceStatus = inReceptacle
+              ? "settledInReceptacle"
+              : "settledOutOfBounds";
+            return {
+              ...d,
+              value,
+              position: [position.x, position.y, position.z] as [number, number, number],
+              settled: true,
+              inReceptacle,
+              status: newStatus
+            } as DiceInstance;
+          });
 
           return updated;
         });
-      },
-      [onScoreUpdate, RECEPTACLE_BOUNDS, diceToReThrow]
-    );
 
-    // Helper function to get maxValue based on type
-    const getMaxValue = (type: DiceInstance['type']): number => {
-      switch (type) {
-        case 'thumbtack': return 1;
-        case 'coin': return 2;
-        case 'd3': return 3;
-        case 'd4': return 4;
-        case 'd6': return 6;
-        default: return 6;
-      }
-    };
+        // Score the die OUTSIDE of setState to avoid closure issues
+        if (inReceptacle && typeof value === "number") {
+          scoredDiceIds.current.add(id); // Mark as scored
+          totalScoreRef.current += value;
+          console.log('Die', id, 'scored:', value, '- New total:', totalScoreRef.current);
+          if (onScoreUpdate) onScoreUpdate(totalScoreRef.current);
+        }
+      },
+      [onScoreUpdate, cardEnabled, onCardItemsChange]
+    );
 
     return (
       <>
-        {diceInstances.map((dice) => (
-          <Dice
-            key={dice.id}
-            ref={(handle) => {
-              if (handle) {
-                diceRefs.current.set(dice.id, handle);
-              } else {
-                diceRefs.current.delete(dice.id);
+        {diceInstances.map((dice) => {
+          // Only render dice that are thrown or already settled (not those in the player's hand)
+          if (dice.status === "inHand") return null;
+
+          // For thrown dice, pass their velocities; for settled dice pass zeros
+          const isThrown = dice.status === "thrown";
+          const initialVelocity: [number, number, number] = isThrown
+            ? (Array.isArray(dice.initialVelocity) && dice.initialVelocity.length === 3
+                ? dice.initialVelocity as [number, number, number]
+                : [0, 0, 0])
+            : [0, 0, 0];
+          const initialAngularVelocity: [number, number, number] = isThrown
+            ? Array.isArray(dice.initialAngularVelocity) && dice.initialAngularVelocity.length === 3
+              ? dice.initialAngularVelocity as [number, number, number]
+              : [
+                  dice.initialAngularVelocity?.[0] ?? 0,
+                  dice.initialAngularVelocity?.[1] ?? 0,
+                  dice.initialAngularVelocity?.[2] ?? 0
+                ]
+            : [0, 0, 0];
+
+          const isOnCard = diceOnCardRef.current.has(dice.id);
+
+          return (
+            <Dice
+              key={dice.id}
+              ref={(handle) => {
+                if (handle) diceRefs.current.set(dice.id, handle);
+                else diceRefs.current.delete(dice.id);
+              }}
+              position={dice.position ?? [0, -1000, 0]} // if no position (edge cases), push offscreen until thrown
+              initialVelocity={initialVelocity}
+              initialAngularVelocity={initialAngularVelocity}
+              onSettled={(value: number, position: THREE.Vector3) =>
+                handleDiceSettled(dice.id, value, position)
               }
-            }}
-            position={dice.position}
-            initialVelocity={dice.initialVelocity}
-            initialAngularVelocity={dice.initialAngularVelocity}
-            onSettled={(value, position) => handleDiceSettled(dice.id, value, position)}
-            shaderEnabled={shaderEnabled}
-            maxValue={getMaxValue(dice.type)}
-            outOfBounds={dice.settled && !dice.inReceptacle}
-          />
-        ))}
+              shaderEnabled={shaderEnabled}
+              maxValue={getMaxValue(dice.type)}
+              outOfBounds={dice.settled && !dice.inReceptacle}
+              onCard={isOnCard}
+            />
+          );
+        })}
       </>
     );
   }
 );
 
-DiceManager.displayName = 'DiceManager';
+DiceManager.displayName = "DiceManager";
 
 export default DiceManager;

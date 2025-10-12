@@ -117,7 +117,7 @@ export function Decorations({ hellFactor }: DecorationsProps) {
       {/* Normal lamp */}
       <mesh
         ref={normalLampRef}
-        position={[3.6, 1.65, -3]}
+        position={[3.6, 1.55, -4]}
         renderOrder={5}
         material={normalLampMaterial}
       >

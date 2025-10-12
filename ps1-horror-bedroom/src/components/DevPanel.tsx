@@ -13,15 +13,18 @@ interface DevPanelProps {
   thumbTackCount: number;
   diceScore: number;
   diceShaderEnabled: boolean;
+  cardEnabled: boolean;
+  diceOnCard: number[];
   onDiceCountChange: (count: number) => void;
   onCoinCountChange: (count: number) => void;
   onD3CountChange: (count: number) => void;
   onD4CountChange: (count: number) => void;
   onThumbTackCountChange: (count: number) => void;
   onDiceShaderToggle: () => void;
+  onCardToggle: () => void;
 }
 
-export function DevPanel({ cameraName, cinematicMode, hellFactor, autoCorruption, diceCount, coinCount, d3Count, d4Count, thumbTackCount, diceScore, diceShaderEnabled, onDiceCountChange, onCoinCountChange, onD3CountChange, onD4CountChange, onThumbTackCountChange, onDiceShaderToggle }: DevPanelProps) {
+export function DevPanel({ cameraName, cinematicMode, hellFactor, autoCorruption, diceCount, coinCount, d3Count, d4Count, thumbTackCount, diceScore, diceShaderEnabled, cardEnabled, diceOnCard, onDiceCountChange, onCoinCountChange, onD3CountChange, onD4CountChange, onThumbTackCountChange, onDiceShaderToggle, onCardToggle }: DevPanelProps) {
   const [visible, setVisible] = useState(true);
 
   useInput({
@@ -181,6 +184,51 @@ export function DevPanel({ cameraName, cinematicMode, hellFactor, autoCorruption
               {diceShaderEnabled ? 'ON' : 'OFF'}
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Receptacle Items Section */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{
+          fontSize: '12px',
+          color: '#888',
+          marginBottom: '8px',
+          letterSpacing: '1px'
+        }}>
+          RECEPTACLE ITEMS
+        </div>
+        <div style={{ paddingLeft: '10px' }}>
+          <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ color: '#888', fontSize: '12px' }}>Card:</span>
+            <button
+              onClick={onCardToggle}
+              style={{
+                background: cardEnabled ? '#1a4d1a' : '#1a1a1a',
+                border: `1px solid ${cardEnabled ? '#00ff00' : '#666'}`,
+                color: cardEnabled ? '#00ff00' : '#666',
+                padding: '4px 12px',
+                cursor: 'pointer',
+                borderRadius: '3px',
+                fontFamily: 'Consolas, Monaco, monospace',
+                fontSize: '12px',
+                fontWeight: 'bold',
+              }}
+            >
+              {cardEnabled ? 'PLACED' : 'REMOVED'}
+            </button>
+          </div>
+          {cardEnabled && (
+            <div style={{ marginTop: '8px', marginBottom: '5px' }}>
+              <span style={{ color: '#888', fontSize: '11px' }}>Dice on Card:</span>{' '}
+              <span style={{
+                color: diceOnCard.length > 0 ? '#0066ff' : '#666',
+                fontSize: '14px',
+                fontWeight: 'bold'
+              }}>
+                {diceOnCard.length > 0 ? diceOnCard.length : 'None'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
