@@ -172,6 +172,40 @@ export const FOG_CONFIG = {
   far: 20,
 };
 
+// Time of day lighting configurations
+export const TIME_OF_DAY_CONFIG = {
+  morning: {
+    // Warm sunrise colors - DRAMATIC warm orange/pink glow
+    fogColor: 0xff9966,        // Deep orange sunrise
+    ambientColor: 0xffccaa,    // Warm peachy ambient
+    ambientIntensity: 2.2,
+    windowColor: 0xff7733,     // Strong orange sunlight
+    windowIntensity: 5.0,      // Very bright morning sun
+    ceilingIntensity: 1.5,     // Less needed in morning
+    ceilingColor: 0xffffdd,    // Warm yellow
+  },
+  midday: {
+    // Bright daylight colors - INTENSE white/blue daylight
+    fogColor: 0xaaddff,        // Bright sky blue
+    ambientColor: 0xffffff,    // Pure white
+    ambientIntensity: 3.0,     // Very bright
+    windowColor: 0xffffee,     // Bright sun yellow-white
+    windowIntensity: 6.0,      // Maximum daylight
+    ceilingIntensity: 1.0,     // Minimal - window dominates
+    ceilingColor: 0xffffbb,    // Soft yellow
+  },
+  night: {
+    // Dark evening/night colors - DEEP blue darkness
+    fogColor: 0x0a0a1a,        // Nearly black with blue tint
+    ambientColor: 0x2a2a4a,    // Very dim blue ambient
+    ambientIntensity: 0.4,     // Very dark
+    windowColor: 0x1a1a3a,     // Very dark blue moonlight
+    windowIntensity: 0.5,      // Barely any moonlight
+    ceilingIntensity: 4.0,     // Indoor lights are primary source
+    ceilingColor: 0xffcc88,    // Warm cozy indoor light
+  },
+};
+
 // Camera bounds for free mode (large bounds - rely on collision detection)
 export const CAMERA_BOUNDS = {
   minX: -20,

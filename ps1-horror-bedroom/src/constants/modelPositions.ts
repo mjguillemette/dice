@@ -46,7 +46,7 @@ export const TV_STAND = {
 
 // Coffee Table (in second room)
 export const COFFEE_TABLE = {
-  position: [0, 0.25, 10] as [number, number, number], // Center of second room
+  position: [0, 0.0, 2.3] as [number, number, number], // Center of second room
   dimensions: {
     width: 1.8, // X dimension
     height: 0.5, // Y dimension (table height)

@@ -2,7 +2,6 @@ import { useCorruptionMaterial } from "../../hooks/useCorruptionMaterial";
 import { COFFEE_TABLE } from "../../constants/modelPositions";
 import WindowFrame from "./WindowFrame";
 import WindowGlow from "./WindowGlow";
-import AutumnBackdrop from "./AutumnBackdrop";
 import CoffeeTable from "../models/CoffeeTable";
 
 interface HouseProps {
@@ -291,12 +290,10 @@ export function House({ hellFactor }: HouseProps) {
         hellFactor={hellFactor}
       />
 
-      {/* ===== AUTUMN BACKDROP ===== */}
-      <AutumnBackdrop hellFactor={hellFactor} />
 
       {/* ===== FURNITURE ===== */}
       {/* Coffee Table */}
-      <CoffeeTable hellFactor={hellFactor} />
+      {/* <CoffeeTable hellFactor={hellFactor} /> */}
     </group>
   );
 }

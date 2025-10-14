@@ -2,7 +2,16 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useThree } from "@react-three/fiber";
 import { Physics, RigidBody, CuboidCollider } from "@react-three/rapier";
 import * as THREE from "three";
-import { FOG_CONFIG } from "../constants/gameConfig";
+import { FOG_CONFIG, TIME_OF_DAY_CONFIG } from "../constants/gameConfig";
+import {
+  RECEPTACLE_POSITION,
+  getTowerCardPosition,
+  getSunCardPosition,
+  getThumbPosition,
+  getHourglassPosition
+} from "../constants/receptacleConfig";
+import { type TimeOfDay } from "../systems/gameStateSystem";
+import { getTimeProgressRatio } from "../systems/gameStateSystem";
 import {
   useInput,
   useMouseLook,
@@ -22,10 +31,13 @@ import Ashtray from "./models/Ashtray";
 import BoardGame from "./models/BoardGame";
 import DiceReceptacle from "./models/DiceReceptacle";
 import Card from "./models/Card";
+import Hourglass from "./models/Hourglass";
 import House from "./house/House";
 import DiceManager, { type DiceManagerHandle } from "./models/DiceManager";
+import ItemChoice from "./models/ItemChoice";
 import { useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { type ItemDefinition } from "../systems/itemSystem";
 
 interface SceneProps {
   onCameraNameChange: (name: string) => void;
@@ -39,13 +51,24 @@ interface SceneProps {
   thumbTackCount: number;
   onDiceScoreChange: (score: number) => void;
   diceShaderEnabled: boolean;
-  cardEnabled: boolean;
-  onCardItemsChange: (diceOnCard: number[]) => void;
+  towerCardEnabled: boolean;
+  sunCardEnabled: boolean;
+  onTowerCardItemsChange: (diceOnCard: number[]) => void;
+  onSunCardItemsChange: (diceOnCard: number[]) => void;
+  showCardDebugBounds: boolean;
+  spotlightHeight: number;
+  spotlightIntensity: number;
+  spotlightAngle: number;
   onSuccessfulRoll: () => void;
   onFailedRoll: () => void;
   onAttempt: () => void;
   onDiceSettled: () => void;
   daysMarked: number;
+  currentAttempts: number; // Needed to know if round is complete after failed roll
+  timeOfDay: TimeOfDay;
+  successfulRolls: number; // Needed for time transition progress
+  itemChoices: ItemDefinition[]; // Items to choose from
+  onItemSelected: (item: ItemDefinition) => void; // Called when item is selected
 }
 
 export function Scene({
@@ -60,19 +83,31 @@ export function Scene({
   thumbTackCount,
   onDiceScoreChange,
   diceShaderEnabled,
-  cardEnabled,
-  onCardItemsChange,
+  towerCardEnabled,
+  sunCardEnabled,
+  onTowerCardItemsChange,
+  onSunCardItemsChange,
+  showCardDebugBounds,
+  spotlightHeight,
+  spotlightIntensity,
+  spotlightAngle,
   onSuccessfulRoll,
   onFailedRoll,
   onAttempt,
   onDiceSettled,
-  daysMarked
+  daysMarked,
+  currentAttempts,
+  timeOfDay,
+  successfulRolls,
+  itemChoices,
+  onItemSelected
 }: SceneProps) {
   const { scene, camera, gl } = useThree();
   const [cinematicMode, setCinematicMode] = useState(false);
   const cameraRef = useRef(camera);
   const diceManagerRef = useRef<DiceManagerHandle>(null);
-  const [hasItemsOnCard, setHasItemsOnCard] = useState(false);
+  const [hasItemsOnTowerCard, setHasItemsOnTowerCard] = useState(false);
+  const [hasItemsOnSunCard, setHasItemsOnSunCard] = useState(false);
 
   // Store yaw (left/right) and pitch (up/down) separately for FPS camera
   const yawRef = useRef(0);
@@ -102,13 +137,21 @@ export function Scene({
     onAutoCorruptionChange(autoCorruption);
   }, [autoCorruption, onAutoCorruptionChange]);
 
-  // Callback for card items change that updates both parent and local state
-  const handleCardItemsChange = useCallback(
+  // Callbacks for card items change that update both parent and local state
+  const handleTowerCardItemsChange = useCallback(
     (diceIds: number[]) => {
-      setHasItemsOnCard(diceIds.length > 0);
-      onCardItemsChange(diceIds);
+      setHasItemsOnTowerCard(diceIds.length > 0);
+      onTowerCardItemsChange(diceIds);
     },
-    [onCardItemsChange]
+    [onTowerCardItemsChange]
+  );
+
+  const handleSunCardItemsChange = useCallback(
+    (diceIds: number[]) => {
+      setHasItemsOnSunCard(diceIds.length > 0);
+      onSunCardItemsChange(diceIds);
+    },
+    [onSunCardItemsChange]
   );
 
   const toggleCamera = useCallback(() => {
@@ -166,13 +209,43 @@ export function Scene({
 
   useMouseLook(handleMouseMove, !cinematicMode);
 
-  // Update fog and background based on corruption
+  // Update fog and background based on time of day AND corruption
   useEffect(() => {
-    const fogColor = new THREE.Color().lerpColors(
-      new THREE.Color(FOG_CONFIG.normalColor),
-      new THREE.Color(FOG_CONFIG.hellColor),
-      hellFactor
+    // Calculate time progress (0-1) toward next time period
+    const timeProgress = getTimeProgressRatio(successfulRolls);
+
+    // Get current and next time period colors
+    const getNextTimePeriod = (current: TimeOfDay): TimeOfDay => {
+      if (current === "morning") return "midday";
+      if (current === "midday") return "night";
+      return "morning";
+    };
+
+    const nextTime = getNextTimePeriod(timeOfDay);
+    const currentTimeConfig = TIME_OF_DAY_CONFIG[timeOfDay];
+    const nextTimeConfig = TIME_OF_DAY_CONFIG[nextTime];
+
+    console.log("🌅 Time-of-Day Update:", {
+      timeOfDay,
+      successfulRolls,
+      timeProgress,
+      nextTime,
+      currentFogColor: `#${currentTimeConfig.fogColor.toString(16)}`,
+      nextFogColor: `#${nextTimeConfig.fogColor.toString(16)}`
+    });
+
+    // Blend between current and next time-of-day
+    const normalFogColor = new THREE.Color(currentTimeConfig.fogColor).lerp(
+      new THREE.Color(nextTimeConfig.fogColor),
+      timeProgress
     );
+
+    // Then blend with corruption/hell color
+    const fogColor = normalFogColor
+      .clone()
+      .lerp(new THREE.Color(FOG_CONFIG.hellColor), hellFactor);
+
+    console.log("🎨 Final fog color:", `#${fogColor.getHexString()}`);
 
     if (scene.fog) {
       (scene.fog as THREE.Fog).color = fogColor;
@@ -181,7 +254,7 @@ export function Scene({
     }
 
     scene.background = fogColor;
-  }, [scene, hellFactor]);
+  }, [scene, hellFactor, timeOfDay, successfulRolls]);
 
   useEffect(() => {
     cameraRef.current = camera;
@@ -205,20 +278,36 @@ export function Scene({
 
       if (!diceManagerRef.current) return;
 
-      // Priority 1: If there are settled dice, pick them up first
+      // Priority 1: If there are settled dice, pick them up first AND evaluate round
       if (diceManagerRef.current.hasSettledDice()) {
         const pickedUp = diceManagerRef.current.pickUpOutsideDice();
-        console.log("Picked up", pickedUp, "dice - next click will throw");
+        console.log("Picked up", pickedUp, "dice outside receptacle");
 
-        // Check if this was a successful roll (all dice in receptacle, no outside dice)
+        // Now evaluate the round based on what happened
         if (pickedUp === 0) {
-          // This means all dice were in receptacle - successful roll!
-          console.log("Successful roll completed!");
+          // All dice were in receptacle - successful round!
+          console.log("✅ All dice in receptacle - successful round!");
           onSuccessfulRoll();
+          // Start a new round - this will pick up all dice and reset score
+          diceManagerRef.current.startNewRound();
         } else {
-          // Some dice were outside receptacle - failed roll
-          console.log("Failed roll - some dice were outside receptacle");
+          // Some dice were outside receptacle - failed attempt
+          console.log(
+            "❌",
+            pickedUp,
+            "dice were outside receptacle - failed attempt"
+          );
           onFailedRoll();
+
+          // Check if this was the last attempt (round is now complete)
+          // After calling onFailedRoll(), currentAttempts will have been incremented
+          // So we check if currentAttempts >= 2 (MAX_ATTEMPTS_PER_ROUND)
+          if (currentAttempts >= 2) {
+            console.log(
+              "🔄 Round complete after failed attempts - starting new round"
+            );
+            diceManagerRef.current.startNewRound();
+          }
         }
 
         return; // ALWAYS return after picking up - prevents both actions in one click
@@ -231,6 +320,10 @@ export function Scene({
       }
 
       // Priority 3: Throw dice (either from re-throw queue or fresh)
+      // Count this as an attempt BEFORE throwing
+      console.log("🎲 Starting new attempt...");
+      onAttempt();
+
       // Get the camera's current position and direction
       const cameraPosition = camera.position.clone();
       const direction = new THREE.Vector3();
@@ -260,7 +353,6 @@ export function Scene({
             intersectPoint
           );
           diceManagerRef.current.throwDice(intersectPoint, cameraPosition);
-          onAttempt(); // Count this as an attempt
         }
       } else {
         console.log("Cinematic mode - throwing from mouse position");
@@ -287,11 +379,10 @@ export function Scene({
             intersectPoint
           );
           diceManagerRef.current.throwDice(intersectPoint, cameraPosition);
-          onAttempt(); // Count this as an attempt
         }
       }
     },
-    [camera, gl, onAttempt, onSuccessfulRoll, onFailedRoll]
+    [camera, gl, onAttempt, onSuccessfulRoll, onFailedRoll, currentAttempts]
   );
 
   useEffect(() => {
@@ -318,9 +409,11 @@ export function Scene({
     };
   }, [gl, handleClick]);
 
-
   // Just a test GLTF model to verify loading
   const thumb = useLoader(GLTFLoader, "thumb.gltf");
+  const table = useLoader(GLTFLoader, "table.gltf");
+  const key = useLoader(GLTFLoader, "key.gltf");
+  const television = useLoader(GLTFLoader, "television.gltf");
 
   return (
     <>
@@ -330,18 +423,40 @@ export function Scene({
         onCameraNameChange={onCameraNameChange}
       />
 
-      <LightingRig hellFactor={hellFactor} />
+      <LightingRig
+        hellFactor={hellFactor}
+        timeOfDay={timeOfDay}
+        timeProgress={getTimeProgressRatio(successfulRolls)}
+      />
 
-      {/* Test model */}
+      {/* Test model - thumb tack on receptacle */}
       <primitive
         object={thumb.scene}
-        position={[1.8, .082, 2.21]}
+        position={getThumbPosition()}
         scale={0.145}
         rotation={[Math.PI / 2.1, Math.PI, 0.7]}
       />
-      
+      <primitive
+        object={table.scene}
+        position={[0, -0.01, 2.21]}
+        scale={3}
+        rotation={[0, Math.PI / 2, 0]}
+      />
+      <primitive
+        object={key.scene}
+        position={[0.13, 0.8, 2.18]}
+        scale={0.3}
+        rotation={[0, Math.PI / 2, 0]}
+      />
+      <primitive
+        object={television.scene}
+        position={[-4, .01, 4.21]}
+        scale={1}
+        rotation={[0, Math.PI / .31, 0]}
+      />
+
       {/* Physics world for dice */}
-      <Physics gravity={[0, -9.81, 0]}>
+      <Physics gravity={[0, -10, 0]}>
         <DiceManager
           ref={diceManagerRef}
           diceCount={diceCount}
@@ -351,8 +466,8 @@ export function Scene({
           thumbTackCount={thumbTackCount}
           onScoreUpdate={onDiceScoreChange}
           shaderEnabled={diceShaderEnabled}
-          cardEnabled={cardEnabled}
-          onCardItemsChange={handleCardItemsChange}
+          cardEnabled={towerCardEnabled}
+          onCardItemsChange={handleTowerCardItemsChange}
         />
 
         {/* Ground plane - using explicit CuboidCollider */}
@@ -424,28 +539,67 @@ export function Scene({
           <CuboidCollider args={[0.9, 0.25, 0.6]} />
         </RigidBody>
 
-        {/* Dice Receptacle - THICK solid base to prevent tiny dice tunneling */}
-        <RigidBody
-          type="fixed"
-          position={[1.5, 0.0, 2.5]}
-          friction={0.8}
-          restitution={0.15}
-          ccd={true}
-        >
-          {/* Very thick base - prevents fast dice tunneling through */}
-          <CuboidCollider args={[0.6, 0.08, 0.4]} position={[0, 0.08, 0]} />
-          {/* Tall front wall */}
-          <CuboidCollider args={[0.6, 0.1, 0.04]} position={[0, 0.16, 0.36]} />
-          {/* Tall back wall */}
-          <CuboidCollider args={[0.6, 0.1, 0.04]} position={[0, 0.16, -0.36]} />
-          {/* Tall left wall */}
-          <CuboidCollider
-            args={[0.04, 0.1, 0.32]}
-            position={[-0.56, 0.16, 0]}
+        {/* Dice Receptacle - now includes its own collision boxes */}
+        <DiceReceptacle
+          position={RECEPTACLE_POSITION}
+          hellFactor={hellFactor}
+          spotlightHeight={spotlightHeight}
+          spotlightIntensity={spotlightIntensity}
+          spotlightAngle={spotlightAngle}
+        />
+
+        {/* Hourglass - physics-enabled object on receptacle */}
+        <Hourglass
+          position={getHourglassPosition()}
+          hellFactor={hellFactor}
+          onBumped={() => console.log("⏳ Hourglass was bumped by dice!")}
+        />
+
+        {/* Tower Card - must be inside Physics for sensor collision detection */}
+        {towerCardEnabled && (
+          <Card
+            position={getTowerCardPosition()}
+            cardType="tower"
+            hellFactor={hellFactor}
+            hasItemOnTop={hasItemsOnTowerCard}
+            showDebugBounds={showCardDebugBounds}
+            onDiceEnter={(diceId) => {
+              if (diceManagerRef.current) {
+                console.log(
+                  "🔮 Tower Card collision detected - applying transformation to die",
+                  diceId
+                );
+                // DiceManager will handle the transformation
+                (diceManagerRef.current as any).applyCardTransformation?.(
+                  diceId
+                );
+              }
+            }}
           />
-          {/* Tall right wall */}
-          <CuboidCollider args={[0.04, 0.1, 0.32]} position={[0.56, 0.16, 0]} />
-        </RigidBody>
+        )}
+
+        {/* Sun Card - must be inside Physics for sensor collision detection */}
+        {sunCardEnabled && (
+          <Card
+            position={getSunCardPosition()}
+            cardType="sun"
+            hellFactor={hellFactor}
+            hasItemOnTop={hasItemsOnSunCard}
+            showDebugBounds={showCardDebugBounds}
+            onDiceEnter={(diceId) => {
+              if (diceManagerRef.current) {
+                console.log(
+                  "🔮 Sun Card collision detected - applying transformation to die",
+                  diceId
+                );
+                // DiceManager will handle the transformation
+                (diceManagerRef.current as any).applyCardTransformation?.(
+                  diceId
+                );
+              }
+            }}
+          />
+        )}
       </Physics>
 
       {/* House structure (floors, walls, stairs) */}
@@ -461,17 +615,34 @@ export function Scene({
       <Decorations hellFactor={hellFactor} />
       <Ashtray hellFactor={hellFactor} />
       <BoardGame
-        position={[2.5, 0.05, 2.38]}
+        position={[2.01, 1.55, 4.88]}
         hellFactor={hellFactor}
         daysMarked={daysMarked}
       />
-      <DiceReceptacle position={[1.5, 0.02, 2.5]} hellFactor={hellFactor} />
-      {cardEnabled && (
-        <Card
-          position={[1.73, 0.063, 3.04]}
-          hellFactor={hellFactor}
-          hasItemOnTop={hasItemsOnCard}
-        />
+
+      {/* Item Choices - appear on table next to receptacle */}
+      {itemChoices.length > 0 && (
+        <>
+          <ItemChoice
+            item={itemChoices[0]}
+            position={[-0.3, 0.75, 2.2]}
+            onSelect={() => onItemSelected(itemChoices[0])}
+          />
+          {itemChoices[1] && (
+            <ItemChoice
+              item={itemChoices[1]}
+              position={[0, 0.75, 2.2]}
+              onSelect={() => onItemSelected(itemChoices[1])}
+            />
+          )}
+          {itemChoices[2] && (
+            <ItemChoice
+              item={itemChoices[2]}
+              position={[0.3, 0.75, 2.2]}
+              onSelect={() => onItemSelected(itemChoices[2])}
+            />
+          )}
+        </>
       )}
     </>
   );

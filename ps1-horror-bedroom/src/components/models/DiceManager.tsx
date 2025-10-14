@@ -7,6 +7,12 @@ import {
 } from "react";
 import * as THREE from "three";
 import Dice, { type DiceHandle } from "./Dice";
+import { getReceptacleBounds, getCardBounds } from "../../constants/receptacleConfig";
+import {
+  type DiceTransformation,
+  applyTransformation,
+  calculateTransformationEffects
+} from "../../systems/diceTransformationSystem";
 
 type DiceStatus =
   | "inHand"
@@ -25,6 +31,7 @@ interface DiceInstance {
   inReceptacle: boolean;
   generation: number;
   status: DiceStatus;
+  transformations: DiceTransformation[]; // Permanent transformations applied to this die
 }
 
 interface DiceManagerProps {
@@ -43,7 +50,8 @@ export interface DiceManagerHandle {
   throwDice: (
     clickPosition: THREE.Vector3,
     throwOrigin?: THREE.Vector3,
-    chargeAmount?: number
+    chargeAmount?: number,
+    cameraDirection?: THREE.Vector3
   ) => void;
   clearDice: () => void;
   getCurrentScore: () => number;
@@ -51,6 +59,8 @@ export interface DiceManagerHandle {
   hasSettledDice: () => boolean;
   canThrow: () => boolean;
   resetDice: () => void; // Reset all dice and clear state
+  startNewRound: () => void; // Start a new round - pick up all dice and reset score
+  applyCardTransformation: (diceId: number) => void; // Apply transformation when die collides with card
 }
 
 const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
@@ -78,27 +88,15 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
     const [isThrowing, setIsThrowing] = useState(false);
     const throwDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const RECEPTACLE_BOUNDS = {
-      minX: 1.5 - 0.6,
-      maxX: 1.5 + 0.6,
-      minZ: 2.5 - 0.4,
-      maxZ: 2.5 + 0.4
-    };
+    // Get receptacle and card bounds from centralized config
+    const RECEPTACLE_BOUNDS = getReceptacleBounds();
+    const CARD_BOUNDS = getCardBounds();
 
-
-    // This is a bad way to do it - we will have many cards 
-    // and other items later with different positions/sizes.
-    // We want to track the card position from the Card component instead.
-
-    // Card bounds - positioned in top right corner of receptacle
-    // Card dimensions: width 0.065, length 0.095
-    // Position: receptacle position [1.5, 0.02, 2.5], offset to top-right
-    const CARD_BOUNDS = {
-      minX: -100.5 + 0.6 - 0.065 - 0.05, // Right edge minus card width minus small margin
-      maxX: 100.5 + 0.6 - 0.05, // Right edge minus small margin
-      minZ: -200.5 - 0.4 + 0.05, // Top edge plus small margin
-      maxZ: 200.5 - 0.4 + 0.05 + 0.095 // Top edge plus margin plus card length
-    };
+    // Debug: Log bounds once
+    console.log('🎯 DiceManager bounds:', {
+      receptacle: RECEPTACLE_BOUNDS,
+      card: CARD_BOUNDS,
+    });
 
     const roomBounds = { minX: -4, maxX: 4, minZ: -4, maxZ: 4 };
 
@@ -122,7 +120,8 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       type: DiceInstance["type"],
       generation: number,
       origin: THREE.Vector3,
-      clickPosition: THREE.Vector3
+      clickPosition: THREE.Vector3,
+      cameraDirection?: THREE.Vector3
     ) => {
       const spreadRadius = 0.02 + Math.random() * 0.05;
       const angle = Math.random() * Math.PI * 2;
@@ -144,13 +143,21 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
         Math.sqrt(directionX * directionX + directionZ * directionZ) || 1;
 
       // Scale throw power based on distance for more natural feel
-      const basePower = 2.5;
-      const distanceMultiplier = Math.min(distance * 0.5, 2.0);
+      const basePower = 0.01;
+      const distanceMultiplier = Math.min(distance * 0.3, 2.0);
       const throwPower = basePower + distanceMultiplier + Math.random() * 0.5;
+
+      // Calculate Y velocity based on camera direction if provided
+      let velocityY = -6 - Math.random() * 0.2; // Default downward arc
+      if (cameraDirection) {
+        // Use camera's Y component to influence throw angle
+        // Positive Y = looking down, negative Y = looking up
+        velocityY = cameraDirection.y * throwPower - Math.random() * 0.2;
+      }
 
       const initialVelocity: [number, number, number] = [
         (directionX / distance) * throwPower,
-        -0.5 - Math.random() * 0.3, // Slightly less downward for better arc
+        velocityY,
         (directionZ / distance) * throwPower
       ];
 
@@ -169,7 +176,8 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
         settled: false,
         inReceptacle: false,
         generation,
-        status: "thrown" as DiceStatus
+        status: "thrown" as DiceStatus,
+        transformations: [] // Start with no transformations
       } as DiceInstance;
     };
 
@@ -178,7 +186,8 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       (
         clickPosition: THREE.Vector3,
         throwOrigin?: THREE.Vector3,
-        chargeAmount: number = 0.5
+        chargeAmount: number = 0.5,
+        cameraDirection?: THREE.Vector3
       ) => {
         // Basic debounce to avoid double throws; pickUp clears it so a pickUp->throw can happen instantly.
         if (isThrowing) return;
@@ -287,7 +296,7 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
     }, []);
 
     // Pick up any settled out-of-bounds dice (mark them inHand).
-    // If none outside and all dice are in the receptacle, pick up ALL for restart and reset score.
+    // Dice in the receptacle remain there until explicitly cleared for a new round.
     const pickUpOutsideDice = useCallback(() => {
       // allow immediate rethrow after pickup
       if (throwDebounceRef.current) {
@@ -299,7 +308,6 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       // Use current diceInstances snapshot
       const settled = diceInstances.filter((d) => d.settled);
       const outside = settled.filter((d) => !d.inReceptacle);
-      const inside = settled.filter((d) => d.inReceptacle);
 
       if (outside.length > 0) {
         // mark those as inHand so they can be thrown next
@@ -335,41 +343,10 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
         return outside.length;
       }
 
-      // If nothing outside, but all dice are in receptacle -> pick up all for restart
-      if (
-        diceInstances.length > 0 &&
-        diceInstances.every((d) => d.status === "settledInReceptacle")
-      ) {
-        // Clear all scored dice and card tracking for fresh round
-        scoredDiceIds.current.clear();
-        diceOnCardRef.current.clear();
-
-        // Notify card change
-        if (onCardItemsChange) {
-          onCardItemsChange([]);
-        }
-
-        setDiceInstances((prev) =>
-          prev.map((d) => ({
-            ...d,
-            status: "inHand",
-            settled: false,
-            inReceptacle: false,
-            position: undefined,
-            initialVelocity: undefined,
-            initialAngularVelocity: undefined,
-            value: undefined,
-            generation: 0
-          }))
-        );
-        // reset total score for new round
-        totalScoreRef.current = 0;
-        if (onScoreUpdate) onScoreUpdate(0);
-        return inside.length;
-      }
-
+      // If nothing outside, return 0 (all dice are in receptacle - successful!)
+      // Dice remain in receptacle - they'll be cleared when starting a new round
       return 0;
-    }, [diceInstances, onScoreUpdate]);
+    }, [diceInstances, onCardItemsChange]);
 
     // Returns true if every die is settled (either in-bounds or out-of-bounds)
     const hasSettledDice = useCallback(() => {
@@ -395,6 +372,70 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       if (onCardItemsChange) onCardItemsChange([]);
     }, [onScoreUpdate, onCardItemsChange]);
 
+    // Start a new round - pick up all dice and reset score (called after successful/failed round completion)
+    const startNewRound = useCallback(() => {
+      // allow immediate rethrow after pickup
+      if (throwDebounceRef.current) {
+        clearTimeout(throwDebounceRef.current);
+        throwDebounceRef.current = null;
+      }
+      setIsThrowing(false);
+
+      // Clear all scored dice and card tracking for fresh round
+      scoredDiceIds.current.clear();
+      diceOnCardRef.current.clear();
+
+      // Notify card change
+      if (onCardItemsChange) {
+        onCardItemsChange([]);
+      }
+
+      // Pick up all dice (mark as inHand)
+      setDiceInstances((prev) =>
+        prev.map((d) => ({
+          ...d,
+          status: "inHand" as DiceStatus,
+          settled: false,
+          inReceptacle: false,
+          position: undefined,
+          initialVelocity: undefined,
+          initialAngularVelocity: undefined,
+          value: undefined,
+          generation: 0
+        }))
+      );
+
+      // Reset total score for new round
+      totalScoreRef.current = 0;
+      if (onScoreUpdate) onScoreUpdate(0);
+    }, [onScoreUpdate, onCardItemsChange]);
+
+    // Apply card transformation when die collides with card sensor
+    const applyCardTransformation = useCallback((diceId: number) => {
+      setDiceInstances((prev) => {
+        return prev.map((d) => {
+          if (d.id !== diceId) return d;
+
+          console.log('🔮 Applying tarot_boost transformation to die', diceId, 'via collision');
+          const newTransformations = applyTransformation(d.transformations, 'tarot_boost');
+
+          return {
+            ...d,
+            transformations: newTransformations
+          };
+        });
+      });
+
+      // Also add to card tracking
+      if (!diceOnCardRef.current.has(diceId)) {
+        diceOnCardRef.current.add(diceId);
+        console.log('✅ Die', diceId, 'added to card via collision! Dice on card:', Array.from(diceOnCardRef.current));
+        if (onCardItemsChange) {
+          onCardItemsChange(Array.from(diceOnCardRef.current));
+        }
+      }
+    }, [onCardItemsChange]);
+
     useImperativeHandle(ref, () => ({
       throwDice,
       clearDice,
@@ -402,7 +443,9 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       pickUpOutsideDice,
       hasSettledDice,
       canThrow,
-      resetDice
+      resetDice,
+      startNewRound,
+      applyCardTransformation
     }));
 
     // Called by each Dice component when it finishes settling.
@@ -421,24 +464,52 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
           position.z <= RECEPTACLE_BOUNDS.maxZ;
 
         // Check if dice landed on the card (if card is enabled)
+        console.log(`🎲 Die ${id} settled at position:`, {
+          x: position.x,
+          z: position.z,
+          cardEnabled,
+          cardBounds: CARD_BOUNDS,
+        });
+
         const onCard = cardEnabled &&
           position.x >= CARD_BOUNDS.minX &&
           position.x <= CARD_BOUNDS.maxX &&
           position.z >= CARD_BOUNDS.minZ &&
           position.z <= CARD_BOUNDS.maxZ;
 
-        // Update card tracking
+        // Update card tracking - ALWAYS call callback to update state
+        const wasOnCard = diceOnCardRef.current.has(id);
         if (onCard) {
           diceOnCardRef.current.add(id);
-          if (onCardItemsChange) {
-            onCardItemsChange(Array.from(diceOnCardRef.current));
-          }
-          console.log('Die', id, 'landed on card! Dice on card:', Array.from(diceOnCardRef.current));
+          console.log('✅ Die', id, 'landed on card! Dice on card:', Array.from(diceOnCardRef.current));
+        } else if (wasOnCard) {
+          diceOnCardRef.current.delete(id);
+          console.log('❌ Die', id, 'removed from card');
         }
+
+        // Always notify when card state changes
+        if (onCardItemsChange && (onCard || wasOnCard)) {
+          onCardItemsChange(Array.from(diceOnCardRef.current));
+        }
+
+        // Calculate the score for this die BEFORE updating state
+        let dieScore = value;
+        let dieTransformations: DiceTransformation[] = [];
 
         setDiceInstances((prev) => {
           const updated = prev.map((d) => {
             if (d.id !== id) return d;
+
+            // Apply tarot card transformation if landed on card
+            let newTransformations = d.transformations;
+            if (onCard) {
+              console.log('🔮 Applying tarot_boost transformation to die', id);
+              newTransformations = applyTransformation(d.transformations, 'tarot_boost');
+            }
+
+            // Store transformations for score calculation
+            dieTransformations = newTransformations;
+
             // Update the die with settle info
             const newStatus: DiceStatus = inReceptacle
               ? "settledInReceptacle"
@@ -449,7 +520,8 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
               position: [position.x, position.y, position.z] as [number, number, number],
               settled: true,
               inReceptacle,
-              status: newStatus
+              status: newStatus,
+              transformations: newTransformations
             } as DiceInstance;
           });
 
@@ -458,9 +530,19 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
 
         // Score the die OUTSIDE of setState to avoid closure issues
         if (inReceptacle && typeof value === "number") {
+          // Apply score multiplier from transformations
+          const effects = calculateTransformationEffects(dieTransformations);
+          dieScore = Math.round(value * effects.scoreMultiplier);
+
           scoredDiceIds.current.add(id); // Mark as scored
-          totalScoreRef.current += value;
-          console.log('Die', id, 'scored:', value, '- New total:', totalScoreRef.current);
+          totalScoreRef.current += dieScore;
+          console.log(
+            `🎲 Die ${id} scored:`,
+            `base=${value}`,
+            `multiplier=${effects.scoreMultiplier.toFixed(2)}`,
+            `final=${dieScore}`,
+            `- Total: ${totalScoreRef.current}`
+          );
           if (onScoreUpdate) onScoreUpdate(totalScoreRef.current);
         }
       },
@@ -492,9 +574,13 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
 
           const isOnCard = diceOnCardRef.current.has(dice.id);
 
+          // Calculate transformation effects for this die
+          const transformationEffects = calculateTransformationEffects(dice.transformations);
+
           return (
             <Dice
               key={dice.id}
+              diceId={dice.id}
               ref={(handle) => {
                 if (handle) diceRefs.current.set(dice.id, handle);
                 else diceRefs.current.delete(dice.id);
@@ -509,6 +595,10 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
               maxValue={getMaxValue(dice.type)}
               outOfBounds={dice.settled && !dice.inReceptacle}
               onCard={isOnCard}
+              sizeMultiplier={transformationEffects.sizeMultiplier}
+              massMultiplier={transformationEffects.massMultiplier}
+              emissive={transformationEffects.emissive}
+              emissiveIntensity={transformationEffects.emissiveIntensity}
             />
           );
         })}

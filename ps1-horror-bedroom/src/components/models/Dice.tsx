@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, forwardRef, useImperativeHandle, useMemo } from 'react';
-import { RigidBody, RapierRigidBody } from '@react-three/rapier';
+import { RigidBody, RapierRigidBody, CuboidCollider, CylinderCollider, ConeCollider } from '@react-three/rapier';
 import { useFrame, useLoader } from '@react-three/fiber';
 import * as THREE from 'three';
 
@@ -24,6 +24,14 @@ interface DiceProps {
   maxValue?: number; // 1 for thumbtack, 2 for coin, 3 for d3, 4 for d4, 6 for d6 (default)
   outOfBounds?: boolean; // Whether dice is out of bounds (red tint)
   onCard?: boolean; // Whether dice is on a card (blue tint)
+  diceId?: number; // Unique ID for collision detection
+
+  // Transformation effects
+  sizeMultiplier?: number;
+  massMultiplier?: number;
+  colorTint?: number;
+  emissive?: number;
+  emissiveIntensity?: number;
 }
 
 export interface DiceHandle {
@@ -39,7 +47,13 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
   shaderEnabled,
   maxValue = 6,
   outOfBounds = false,
-  onCard = false
+  onCard = false,
+  sizeMultiplier = 1.0,
+  massMultiplier = 1.0,
+  colorTint,
+  emissive,
+  emissiveIntensity = 0,
+  diceId
 }, ref) => {
   const rigidBodyRef = useRef<RapierRigidBody>(null);
   const meshRef = useRef<THREE.Mesh>(null);
@@ -51,6 +65,11 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
   const hasSettledRef = useRef(false); // Track if we've already called onSettled
   const TIMEOUT_DURATION = 2.0; // 2 seconds timeout
 
+  // Animation state for smooth transformation scaling
+  const [animatedScale, setAnimatedScale] = useState(1.0);
+  const targetScaleRef = useRef(sizeMultiplier);
+  const currentScaleRef = useRef(1.0);
+
   // Expose methods to parent
   useImperativeHandle(ref, () => ({
     getValue: () => diceValue,
@@ -60,6 +79,12 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
   useEffect(() => {
     if (rigidBodyRef.current && !hasSettledRef.current) {
       console.log('Dice created at position:', position, 'with velocity:', initialVelocity);
+
+      // Store dice ID in userData for collision detection
+      if (diceId !== undefined) {
+        (rigidBodyRef.current as any).userData = { diceId };
+      }
+
       rigidBodyRef.current.setLinvel(
         { x: initialVelocity[0], y: initialVelocity[1], z: initialVelocity[2] },
         true
@@ -73,7 +98,25 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
         creationTimeRef.current = performance.now() / 1000; // Convert to seconds
       }
     }
-  }, [initialVelocity, initialAngularVelocity, position]);
+  }, [initialVelocity, initialAngularVelocity, position, diceId]);
+
+  // Animate scale changes smoothly
+  useFrame((state, delta) => {
+    // Smooth scale animation
+    if (Math.abs(targetScaleRef.current - currentScaleRef.current) > 0.001) {
+      const lerpSpeed = 8.0; // How fast the animation happens
+      currentScaleRef.current += (targetScaleRef.current - currentScaleRef.current) * lerpSpeed * delta;
+      setAnimatedScale(currentScaleRef.current);
+    }
+  });
+
+  // Update target scale when sizeMultiplier changes
+  useEffect(() => {
+    if (targetScaleRef.current !== sizeMultiplier) {
+      targetScaleRef.current = sizeMultiplier;
+      console.log(`🎬 Animating dice scale from ${currentScaleRef.current.toFixed(2)} to ${sizeMultiplier.toFixed(2)}`);
+    }
+  }, [sizeMultiplier]);
 
   // Check if dice has settled
   useFrame(() => {
@@ -212,7 +255,8 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
     return faceValues[topFaceIndex];
   };
 
-  const diceSize = 0.05; // 20% of original size - very small dice
+  const baseDiceSize = 0.03; // 20% of original size - very small dice
+  const diceSize = baseDiceSize * sizeMultiplier; // Apply size multiplier from transformations
 
   // Load textures for D6
   const d6Textures = maxValue === 6 ? useLoader(THREE.TextureLoader, [
@@ -324,6 +368,18 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
             mat.emissiveIntensity = 0.6;
           }
         });
+      } else if (emissive !== undefined && emissiveIntensity > 0) {
+        // Apply transformation emissive color (like tarot boost)
+        meshMaterials.forEach(mat => {
+          if (mat instanceof THREE.MeshStandardMaterial) {
+            mat.emissive.setHex(emissive);
+            mat.emissiveIntensity = emissiveIntensity;
+            // Apply color tint if specified
+            if (colorTint !== undefined) {
+              mat.color.setHex(colorTint);
+            }
+          }
+        });
       } else if (onCard && settled && shaderEnabled) {
         // Blue pulsing tint for dice on card
         pulseTimeRef.current += 0.05;
@@ -375,21 +431,67 @@ const Dice = forwardRef<DiceHandle, DiceProps>(({
     }
   };
 
+  // Render appropriate collider based on dice type
+  const renderCollider = () => {
+    switch (maxValue) {
+      case 1: // Thumb tack - cone collider
+        return (
+          <ConeCollider
+            args={[
+              (diceSize * 1.2 / 2) * animatedScale, // half height
+              (diceSize * 0.5) * animatedScale // radius
+            ]}
+          />
+        );
+      case 2: // Coin - flat cylinder collider
+        return (
+          <CylinderCollider
+            args={[
+              (diceSize * 0.3 / 2) * animatedScale, // half height (very flat)
+              (diceSize * 0.8) * animatedScale // radius
+            ]}
+          />
+        );
+      case 3: // D3 - cylinder collider
+      case 4: // D4 - use cuboid for now (tetrahedron collider not available)
+      case 6: // D6 - cube collider
+      default:
+        return (
+          <CuboidCollider
+            args={[
+              (diceSize / 2) * animatedScale,
+              (diceSize / 2) * animatedScale,
+              (diceSize / 2) * animatedScale
+            ]}
+          />
+        );
+    }
+  };
+
   return (
     <RigidBody
       ref={rigidBodyRef}
       position={position}
       type="dynamic"
-      restitution={0.5}
-      friction={0.4}
-      linearDamping={0.8}
-      angularDamping={0.8}
-      mass={0.03}
-      colliders="cuboid"
+      restitution={0.4}
+      friction={0.5}
+      linearDamping={2.4}
+      angularDamping={2.0}
+      mass={0.066 * massMultiplier} // Apply mass multiplier from transformations
+      colliders={false} // Disable auto colliders - we'll manually add scaled collider
       enabledRotations={[true, true, true]}
       ccd={true}
     >
-      <mesh ref={meshRef} castShadow receiveShadow material={materials}>
+      {/* Manual collider that scales with animatedScale and matches geometry type */}
+      {renderCollider()}
+
+      <mesh
+        ref={meshRef}
+        castShadow
+        receiveShadow
+        material={materials}
+        scale={[animatedScale, animatedScale, animatedScale]} // Apply smooth animated scaling
+      >
         {renderGeometry()}
       </mesh>
     </RigidBody>

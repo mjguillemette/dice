@@ -14,8 +14,14 @@ interface DevPanelProps {
   thumbTackCount: number;
   diceScore: number;
   diceShaderEnabled: boolean;
-  cardEnabled: boolean;
-  diceOnCard: number[];
+  towerCardEnabled: boolean;
+  sunCardEnabled: boolean;
+  diceOnTowerCard: number[];
+  diceOnSunCard: number[];
+  showCardDebugBounds: boolean;
+  spotlightHeight: number;
+  spotlightIntensity: number;
+  spotlightAngle: number;
   timeOfDay: 'morning' | 'midday' | 'night';
   daysMarked: number;
   successfulRolls: number;
@@ -27,16 +33,38 @@ interface DevPanelProps {
   onD4CountChange: (count: number) => void;
   onThumbTackCountChange: (count: number) => void;
   onDiceShaderToggle: () => void;
-  onCardToggle: () => void;
+  onTowerCardToggle: () => void;
+  onSunCardToggle: () => void;
+  onCardDebugToggle: () => void;
+  onSpotlightHeightChange: (height: number) => void;
+  onSpotlightIntensityChange: (intensity: number) => void;
+  onSpotlightAngleChange: (angle: number) => void;
   onTestSuccessfulRoll?: () => void;
 }
 
-export function DevPanel({ cameraName, cinematicMode, hellFactor, autoCorruption, diceCount, coinCount, d3Count, d4Count, thumbTackCount, diceScore, diceShaderEnabled, cardEnabled, diceOnCard, timeOfDay, daysMarked, successfulRolls, currentAttempts, gamePhase, onDiceCountChange, onCoinCountChange, onD3CountChange, onD4CountChange, onThumbTackCountChange, onDiceShaderToggle, onCardToggle, onTestSuccessfulRoll }: DevPanelProps) {
+export function DevPanel({ cameraName, cinematicMode, hellFactor, autoCorruption, diceCount, coinCount, d3Count, d4Count, thumbTackCount, diceScore, diceShaderEnabled, towerCardEnabled, sunCardEnabled, diceOnTowerCard, diceOnSunCard, showCardDebugBounds, spotlightHeight, spotlightIntensity, spotlightAngle, timeOfDay, daysMarked, successfulRolls, currentAttempts, gamePhase, onDiceCountChange, onCoinCountChange, onD3CountChange, onD4CountChange, onThumbTackCountChange, onDiceShaderToggle, onTowerCardToggle, onSunCardToggle, onCardDebugToggle, onSpotlightHeightChange, onSpotlightIntensityChange, onSpotlightAngleChange, onTestSuccessfulRoll }: DevPanelProps) {
   const [visible, setVisible] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    status: true,
+    time: true,
+    controls: false,
+    throwables: false,
+    receptacle: false,
+    spotlight: false,
+    corruption: false,
+  });
 
   useInput({
     onToggleUI: () => setVisible((prev) => !prev),
   });
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
 
   if (!visible) return null;
 
@@ -158,14 +186,14 @@ export function DevPanel({ cameraName, cinematicMode, hellFactor, autoCorruption
             <span style={{ color: '#666' }}> / 3</span>
           </div>
           <div style={{ marginBottom: '8px' }}>
-            <span style={{ color: '#888' }}>Current Attempts:</span>{' '}
+            <span style={{ color: '#888' }}>Round Attempts:</span>{' '}
             <span style={{
-              color: currentAttempts >= 3 ? '#ff0000' : currentAttempts >= 2 ? '#ffcc00' : '#00ff00',
+              color: currentAttempts >= 2 ? '#ff0000' : currentAttempts >= 1 ? '#ffcc00' : '#00ff00',
               fontWeight: 'bold'
             }}>
               {currentAttempts}
             </span>
-            <span style={{ color: '#666' }}> / 3</span>
+            <span style={{ color: '#666' }}> / 2</span>
           </div>
           {onTestSuccessfulRoll && (
             <div style={{ marginTop: '12px' }}>
@@ -288,14 +316,15 @@ export function DevPanel({ cameraName, cinematicMode, hellFactor, autoCorruption
           RECEPTACLE ITEMS
         </div>
         <div style={{ paddingLeft: '10px' }}>
+          {/* Tower Card */}
           <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ color: '#888', fontSize: '12px' }}>Card:</span>
+            <span style={{ color: '#888', fontSize: '12px' }}>Tower Card:</span>
             <button
-              onClick={onCardToggle}
+              onClick={onTowerCardToggle}
               style={{
-                background: cardEnabled ? '#1a4d1a' : '#1a1a1a',
-                border: `1px solid ${cardEnabled ? '#00ff00' : '#666'}`,
-                color: cardEnabled ? '#00ff00' : '#666',
+                background: towerCardEnabled ? '#1a4d1a' : '#1a1a1a',
+                border: `1px solid ${towerCardEnabled ? '#00ff00' : '#666'}`,
+                color: towerCardEnabled ? '#00ff00' : '#666',
                 padding: '4px 12px',
                 cursor: 'pointer',
                 borderRadius: '3px',
@@ -304,21 +333,119 @@ export function DevPanel({ cameraName, cinematicMode, hellFactor, autoCorruption
                 fontWeight: 'bold',
               }}
             >
-              {cardEnabled ? 'PLACED' : 'REMOVED'}
+              {towerCardEnabled ? 'PLACED' : 'REMOVED'}
             </button>
           </div>
-          {cardEnabled && (
-            <div style={{ marginTop: '8px', marginBottom: '5px' }}>
-              <span style={{ color: '#888', fontSize: '11px' }}>Dice on Card:</span>{' '}
+          {towerCardEnabled && (
+            <div style={{ marginLeft: '10px', marginBottom: '8px' }}>
+              <span style={{ color: '#888', fontSize: '11px' }}>Dice on Tower:</span>{' '}
               <span style={{
-                color: diceOnCard.length > 0 ? '#0066ff' : '#666',
+                color: diceOnTowerCard.length > 0 ? '#0066ff' : '#666',
                 fontSize: '14px',
                 fontWeight: 'bold'
               }}>
-                {diceOnCard.length > 0 ? diceOnCard.length : 'None'}
+                {diceOnTowerCard.length > 0 ? diceOnTowerCard.length : 'None'}
               </span>
             </div>
           )}
+
+          {/* Sun Card */}
+          <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ color: '#888', fontSize: '12px' }}>Sun Card:</span>
+            <button
+              onClick={onSunCardToggle}
+              style={{
+                background: sunCardEnabled ? '#1a4d1a' : '#1a1a1a',
+                border: `1px solid ${sunCardEnabled ? '#00ff00' : '#666'}`,
+                color: sunCardEnabled ? '#00ff00' : '#666',
+                padding: '4px 12px',
+                cursor: 'pointer',
+                borderRadius: '3px',
+                fontFamily: 'Consolas, Monaco, monospace',
+                fontSize: '12px',
+                fontWeight: 'bold',
+              }}
+            >
+              {sunCardEnabled ? 'PLACED' : 'REMOVED'}
+            </button>
+          </div>
+          {sunCardEnabled && (
+            <div style={{ marginLeft: '10px', marginBottom: '8px' }}>
+              <span style={{ color: '#888', fontSize: '11px' }}>Dice on Sun:</span>{' '}
+              <span style={{
+                color: diceOnSunCard.length > 0 ? '#0066ff' : '#666',
+                fontSize: '14px',
+                fontWeight: 'bold'
+              }}>
+                {diceOnSunCard.length > 0 ? diceOnSunCard.length : 'None'}
+              </span>
+            </div>
+          )}
+
+          {/* Debug Bounds Toggle - show when either card is enabled */}
+          {(towerCardEnabled || sunCardEnabled) && (
+            <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ color: '#888', fontSize: '11px' }}>Debug Bounds:</span>
+              <button
+                onClick={onCardDebugToggle}
+                style={{
+                  background: showCardDebugBounds ? '#4d1a1a' : '#1a1a1a',
+                  border: `1px solid ${showCardDebugBounds ? '#ffcc00' : '#666'}`,
+                  color: showCardDebugBounds ? '#ffcc00' : '#666',
+                  padding: '2px 8px',
+                  cursor: 'pointer',
+                  borderRadius: '3px',
+                  fontFamily: 'Consolas, Monaco, monospace',
+                  fontSize: '10px',
+                  fontWeight: 'bold',
+                }}
+              >
+                {showCardDebugBounds ? 'ON' : 'OFF'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Spotlight Settings Section */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{
+          fontSize: '12px',
+          color: '#888',
+          marginBottom: '8px',
+          letterSpacing: '1px'
+        }}>
+          SPOTLIGHT SETTINGS
+        </div>
+        <div style={{ paddingLeft: '10px' }}>
+          <SliderControl
+            label="Height"
+            value={spotlightHeight}
+            min={0.1}
+            max={2.0}
+            step={0.1}
+            onChange={onSpotlightHeightChange}
+            unit="m"
+          />
+          <SliderControl
+            label="Intensity"
+            value={spotlightIntensity}
+            min={0.0}
+            max={5.0}
+            step={0.1}
+            onChange={onSpotlightIntensityChange}
+            unit=""
+          />
+          <SliderControl
+            label="Angle"
+            value={spotlightAngle}
+            min={Math.PI / 12}
+            max={Math.PI / 3}
+            step={Math.PI / 36}
+            onChange={onSpotlightAngleChange}
+            unit="°"
+            displayValue={(v) => Math.round((v * 180) / Math.PI)}
+          />
         </div>
       </div>
 
@@ -490,6 +617,52 @@ function Stage({ name, range, active }: { name: string; range: string; active: b
         {name}
       </span>
       <span style={{ color: '#555', fontSize: '11px' }}>{range}</span>
+    </div>
+  );
+}
+
+function SliderControl({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  unit,
+  displayValue
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: number) => void;
+  unit: string;
+  displayValue?: (value: number) => number;
+}) {
+  const displayVal = displayValue ? displayValue(value) : value.toFixed(1);
+
+  return (
+    <div style={{ marginBottom: '10px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+        <span style={{ color: '#888', fontSize: '11px' }}>{label}:</span>
+        <span style={{ color: '#00ff00', fontSize: '11px', fontWeight: 'bold' }}>
+          {displayVal}{unit}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        style={{
+          width: '100%',
+          accentColor: '#00ff00',
+          cursor: 'pointer',
+        }}
+      />
     </div>
   );
 }

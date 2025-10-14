@@ -52,7 +52,7 @@ export function BoardGame({ position, hellFactor, daysMarked }: BoardGameProps) 
   const boardEdgeWidth = 0.023;
 
   return (
-    <group position={position} rotation={[0, -1.55, 0]}>
+    <group position={position} rotation={[Math.PI / 2, 0, Math.PI / 1]}>
       {/* ===== GAME BOARD ===== */}
 
       {/* Board base */}
