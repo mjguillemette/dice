@@ -36,15 +36,22 @@ export function Hourglass({ position, hellFactor, onBumped }: HourglassProps) {
       const angvel = rigidBodyRef.current.angvel();
 
       // Calculate total velocity magnitude
-      const linearSpeed = Math.sqrt(linvel.x ** 2 + linvel.y ** 2 + linvel.z ** 2);
-      const angularSpeed = Math.sqrt(angvel.x ** 2 + angvel.y ** 2 + angvel.z ** 2);
+      const linearSpeed = Math.sqrt(
+        linvel.x ** 2 + linvel.y ** 2 + linvel.z ** 2
+      );
+      const angularSpeed = Math.sqrt(
+        angvel.x ** 2 + angvel.y ** 2 + angvel.z ** 2
+      );
 
       // If moving significantly, it's been bumped
       const bumpThreshold = 0.1;
       const now = Date.now();
 
-      if ((linearSpeed > bumpThreshold || angularSpeed > bumpThreshold) && now - lastBumpTime.current > 500) {
-        console.log('⏳ Hourglass bumped!', { linearSpeed, angularSpeed });
+      if (
+        (linearSpeed > bumpThreshold || angularSpeed > bumpThreshold) &&
+        now - lastBumpTime.current > 500
+      ) {
+        console.log("⏳ Hourglass bumped!", { linearSpeed, angularSpeed });
         setIsBumped(true);
         lastBumpTime.current = now;
 
@@ -69,19 +76,19 @@ export function Hourglass({ position, hellFactor, onBumped }: HourglassProps) {
     roughness: 0.1,
     metalness: 0.3,
     emissive: isBumped ? new THREE.Color(0xff6600) : new THREE.Color(0x000000),
-    emissiveIntensity: isBumped ? 0.3 : 0.0,
+    emissiveIntensity: isBumped ? 0.3 : 0.0
   });
 
   const sandMaterial = new THREE.MeshStandardMaterial({
     color: 0xddaa66,
     roughness: 0.9,
-    metalness: 0.0,
+    metalness: 0.0
   });
 
   const frameMaterial = new THREE.MeshStandardMaterial({
     color: hellFactor > 0.5 ? 0x331100 : 0x664422,
     roughness: 0.7,
-    metalness: 0.2,
+    metalness: 0.2
   });
 
   return (
@@ -98,44 +105,84 @@ export function Hourglass({ position, hellFactor, onBumped }: HourglassProps) {
     >
       {/* Main collision shape - slightly smaller than visual for better stability */}
       <CuboidCollider
-        args={[hourglassWidth * 0.4, hourglassHeight * 0.45, hourglassDepth * 0.4]}
+        args={[
+          hourglassWidth * 0.4,
+          hourglassHeight * 0.45,
+          hourglassDepth * 0.4
+        ]}
       />
 
       {/* Visual geometry */}
       <group>
         {/* Top glass bulb */}
         <mesh position={[0, hourglassHeight * 0.3, 0]} material={glassMaterial}>
-          <sphereGeometry args={[hourglassWidth * 0.8, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          <sphereGeometry
+            args={[hourglassWidth * 0.8, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2]}
+          />
         </mesh>
 
         {/* Bottom glass bulb */}
-        <mesh position={[0, -hourglassHeight * 0.3, 0]} rotation={[Math.PI, 0, 0]} material={glassMaterial}>
-          <sphereGeometry args={[hourglassWidth * 0.8, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <mesh
+          position={[0, -hourglassHeight * 0.3, 0]}
+          rotation={[Math.PI, 0, 0]}
+          material={glassMaterial}
+        >
+          <sphereGeometry
+            args={[hourglassWidth * 0.8, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2]}
+          />
         </mesh>
 
         {/* Center neck */}
         <mesh material={glassMaterial}>
-          <cylinderGeometry args={[hourglassWidth * 0.2, hourglassWidth * 0.2, hourglassHeight * 0.3, 6]} />
+          <cylinderGeometry
+            args={[
+              hourglassWidth * 0.2,
+              hourglassWidth * 0.2,
+              hourglassHeight * 0.3,
+              6
+            ]}
+          />
         </mesh>
 
         {/* Sand in bottom (grows over time in real implementation) */}
-        <mesh position={[0, -hourglassHeight * 0.25, 0]} material={sandMaterial}>
-          <coneGeometry args={[hourglassWidth * 0.6, hourglassHeight * 0.3, 6]} />
+        <mesh
+          position={[0, -hourglassHeight * 0.25, 0]}
+          material={sandMaterial}
+        >
+          <coneGeometry
+            args={[hourglassWidth * 0.6, hourglassHeight * 0.3, 6]}
+          />
         </mesh>
 
         {/* Sand in top (shrinks over time in real implementation) */}
-        <mesh position={[0, hourglassHeight * 0.25, 0]} rotation={[Math.PI, 0, 0]} material={sandMaterial}>
-          <coneGeometry args={[hourglassWidth * 0.5, hourglassHeight * 0.2, 6]} />
+        <mesh
+          position={[0, hourglassHeight * 0.25, 0]}
+          rotation={[Math.PI, 0, 0]}
+          material={sandMaterial}
+        >
+          <coneGeometry
+            args={[hourglassWidth * 0.5, hourglassHeight * 0.2, 6]}
+          />
         </mesh>
 
         {/* Top frame ring */}
-        <mesh position={[0, hourglassHeight * 0.45, 0]} material={frameMaterial}>
-          <torusGeometry args={[hourglassWidth * 0.9, hourglassWidth * 0.15, 6, 8]} />
+        <mesh
+          position={[0, hourglassHeight * 0.45, 0]}
+          material={frameMaterial}
+        >
+          <torusGeometry
+            args={[hourglassWidth * 0.9, hourglassWidth * 0.15, 6, 8]}
+          />
         </mesh>
 
         {/* Bottom frame ring */}
-        <mesh position={[0, -hourglassHeight * 0.45, 0]} material={frameMaterial}>
-          <torusGeometry args={[hourglassWidth * 0.9, hourglassWidth * 0.15, 6, 8]} />
+        <mesh
+          position={[0, -hourglassHeight * 0.45, 0]}
+          material={frameMaterial}
+        >
+          <torusGeometry
+            args={[hourglassWidth * 0.9, hourglassWidth * 0.15, 6, 8]}
+          />
         </mesh>
 
         {/* Support posts (4 corners) */}
@@ -144,7 +191,14 @@ export function Hourglass({ position, hellFactor, onBumped }: HourglassProps) {
           const z = Math.sin(angle) * hourglassDepth * 0.85;
           return (
             <mesh key={i} position={[x, 0, z]} material={frameMaterial}>
-              <cylinderGeometry args={[hourglassWidth * 0.08, hourglassWidth * 0.08, hourglassHeight * 0.9, 4]} />
+              <cylinderGeometry
+                args={[
+                  hourglassWidth * 0.08,
+                  hourglassWidth * 0.08,
+                  hourglassHeight * 0.9,
+                  4
+                ]}
+              />
             </mesh>
           );
         })}

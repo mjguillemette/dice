@@ -1,22 +1,65 @@
-import { useState, useReducer, useCallback, useEffect, useMemo } from "react";
+import { useState, useReducer, useCallback, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import Scene from "./components/Scene";
 import DevPanel from "./components/DevPanel";
 import Crosshair from "./components/ui/Crosshair";
 import ScoreDisplay from "./components/ui/ScoreDisplay";
+import Wallet from "./components/ui/Wallet";
+import StoreMenu, { type StoreItemDefinition } from "./components/models/Store";
+import { useWallet } from "./hooks/useWallet";
 import { gameStateReducer, initialGameState } from "./systems/gameStateSystem";
 import {
   type PlayerInventory,
   INITIAL_INVENTORY,
   generateItemChoices,
   applyItemToInventory,
-  type ItemDefinition
+  type ItemDefinition,
+  generateStoreChoices
 } from "./systems/itemSystem";
 import "./App.css";
 
+// Define the items available in the store
+const storeItems: StoreItemDefinition[] = [
+  {
+    id: "buy_thumbtack",
+    name: "Thumbtack",
+    description: "A sharp, pointy classic.",
+    cost: 15,
+    type: "thumbtacks"
+  },
+  {
+    id: "buy_coin",
+    name: "Coin",
+    description: "Heads or tails?",
+    cost: 50,
+    type: "coins"
+  },
+  {
+    id: "buy_d4",
+    name: "D4",
+    description: "The caltrop of dice.",
+    cost: 150,
+    type: "d4"
+  },
+  {
+    id: "buy_d3",
+    name: "D3",
+    description: "A strange D6, scratched out and numbered 1-3 twice.",
+    cost: 200,
+    type: "d3"
+  },
+  {
+    id: "buy_d6",
+    name: "D6",
+    description: "Ol' reliable.",
+    cost: 500,
+    type: "d6"
+  }
+];
+
 function App() {
   const [cameraName, setCameraName] = useState("First Person");
-  const [cinematicMode, setCinematicMode] = useState(false); // Start in first-person mode
+  const [cinematicMode, setCinematicMode] = useState(false);
   const [hellFactor, setHellFactor] = useState(0);
   const [autoCorruption, setAutoCorruption] = useState(true);
   const [diceCount, setDiceCount] = useState(2);
@@ -31,99 +74,95 @@ function App() {
   const [diceOnTowerCard, setDiceOnTowerCard] = useState<number[]>([]);
   const [diceOnSunCard, setDiceOnSunCard] = useState<number[]>([]);
   const [showCardDebugBounds, setShowCardDebugBounds] = useState(false);
-  const [rollHistory, setRollHistory] = useState<number[]>([]); // Track last completed roll scores
-  const [diceSettled, setDiceSettled] = useState(false); // Track if dice are currently settled
+  const [rollHistory, setRollHistory] = useState<number[]>([]);
+  const [diceSettled, setDiceSettled] = useState(false);
 
-  // Spotlight settings
   const [spotlightHeight, setSpotlightHeight] = useState(0.5);
   const [spotlightIntensity, setSpotlightIntensity] = useState(0.8);
   const [spotlightAngle, setSpotlightAngle] = useState(Math.PI / 6);
 
-  // Game state machine
   const [gameState, dispatch] = useReducer(gameStateReducer, initialGameState);
+  const { balances, addCurrency, spendCurrency } = useWallet({ cents: 55 });
 
-  // Item system - player inventory
   const [inventory, setInventory] =
     useState<PlayerInventory>(INITIAL_INVENTORY);
   const [itemChoices, setItemChoices] = useState<ItemDefinition[]>([]);
+  const [storeChoices, setStoreChoices] = useState<ItemDefinition[]>([]);
 
-  console.log("🎮 App render - Game State:", {
-    phase: gameState.phase,
-    timeOfDay: gameState.timeOfDay,
-    daysMarked: gameState.daysMarked,
-    successfulRolls: gameState.successfulRolls,
-    currentAttempts: gameState.currentAttempts
-  });
+  const handleDieSettledForCurrency = useCallback(
+    (type: string, amount: number) => {
+      if (type === "coin") {
+        addCurrency("cents", amount);
+      }
+    },
+    [addCurrency]
+  );
 
-  // Handle successful roll completion (all dice settled in receptacle)
+  const handlePurchase = useCallback(
+    (item: ItemDefinition) => {
+      if (item.price === undefined) {
+        console.log("Purchase failed: Item price is undefined.");
+        return;
+      }
+
+      if (spendCurrency("cents", item.price)) {
+        console.log("Purchase successful!");
+
+        const newInventory = applyItemToInventory(inventory, item);
+        setInventory(newInventory);
+        dispatch({ type: "ITEM_SELECTED" });
+        return newInventory;
+      } else {
+        console.log("Purchase failed: Insufficient funds.");
+      }
+    },
+    [spendCurrency, setInventory, inventory]
+  );
+
   const handleSuccessfulRoll = useCallback(() => {
-    console.log("✅ App: Successful roll detected");
-
-    // Add current score to history
     if (diceScore > 0) {
       setRollHistory((prev) => [...prev, diceScore]);
     }
-
-    // Reset current score for next round
     setDiceScore(0);
     setDiceSettled(false);
-
     dispatch({ type: "SUCCESSFUL_ROLL" });
   }, [diceScore]);
 
-  // Handle failed roll (some dice outside receptacle)
   const handleFailedRoll = useCallback(() => {
-    console.log("❌ App: Failed roll detected");
-
-    // Add current score to history even on failure (0 if no dice in receptacle)
     setRollHistory((prev) => [...prev, diceScore]);
-
-    // Reset current score for next attempt/round
     setDiceScore(0);
     setDiceSettled(false);
-
     dispatch({ type: "FAILED_ROLL" });
   }, [diceScore]);
 
-  // Handle dice throw attempt
   const handleAttempt = useCallback(() => {
-    console.log("🎲 App: Throw attempt");
     dispatch({ type: "THROW_DICE" });
   }, []);
 
-  // Handle dice settled
   const handleDiceSettled = useCallback(() => {
-    console.log("⏸️ App: Dice settled");
     setDiceSettled(true);
     dispatch({ type: "DICE_SETTLED" });
   }, []);
 
-  // Handle item selection
   const handleItemSelected = useCallback(
     (item: ItemDefinition) => {
-      console.log("🎁 Item selected:", item.name);
-
-      // Apply item to inventory
       const newInventory = applyItemToInventory(inventory, item);
       setInventory(newInventory);
-
-      // Clear choices and return to gameplay
       setItemChoices([]);
       dispatch({ type: "ITEM_SELECTED" });
     },
     [inventory]
   );
 
-  // Generate item choices when entering item selection phase
   useEffect(() => {
+    const storeChoices = generateStoreChoices(inventory, 5);
+    setStoreChoices(storeChoices);
     if (gameState.phase === "item_selection" && itemChoices.length === 0) {
-      console.log("🎁 Generating item choices for day", gameState.daysMarked);
       const choices = generateItemChoices(inventory, 3);
       setItemChoices(choices);
     }
-  }, [gameState.phase, gameState.daysMarked, inventory, itemChoices.length]);
+  }, [gameState.phase, inventory, itemChoices.length, storeChoices]);
 
-  // Sync inventory with dice counts (for now - this maintains dev panel functionality)
   useEffect(() => {
     setDiceCount(inventory.dice.d6);
     setCoinCount(inventory.dice.coins);
@@ -144,10 +183,8 @@ function App() {
         overflow: "hidden"
       }}
     >
-      {/* Crosshair - only show in first-person mode */}
+      {/* 2D UI Components are rendered here, outside of the Canvas */}
       {!cinematicMode && <Crosshair />}
-
-      {/* Score Display - always visible */}
       <ScoreDisplay
         currentScore={diceScore}
         rollHistory={rollHistory}
@@ -155,7 +192,9 @@ function App() {
         maxAttempts={2}
         isSettled={diceSettled}
       />
+      <Wallet balances={balances} />
 
+      {/* The Canvas is ONLY for 3D components */}
       <Canvas
         camera={{ fov: 75, near: 0.1, far: 1000, position: [0, 1.6, 5] }}
         gl={{ antialias: false }}
@@ -196,9 +235,17 @@ function App() {
           timeOfDay={gameState.timeOfDay}
           successfulRolls={gameState.successfulRolls}
           itemChoices={gameState.phase === "item_selection" ? itemChoices : []}
+          storeChoices={storeChoices || []}
           onItemSelected={handleItemSelected}
+          isStoreOpen={true}
+          onDieSettledForCurrency={handleDieSettledForCurrency}
+          onPurchaseItem={handlePurchase}
+          onCloseStore={() => dispatch({ type: "EXIT_STORE" })}
+          storeItems={storeItems}
+          spendCurrency={spendCurrency}
         />
       </Canvas>
+
       <DevPanel
         cameraName={cameraName}
         cinematicMode={cinematicMode}
@@ -237,6 +284,7 @@ function App() {
         onSpotlightIntensityChange={setSpotlightIntensity}
         onSpotlightAngleChange={setSpotlightAngle}
         onTestSuccessfulRoll={handleSuccessfulRoll}
+        onTestStoreOpen={() => dispatch({ type: "ENTER_STORE" })}
       />
     </div>
   );

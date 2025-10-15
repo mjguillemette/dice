@@ -1,0 +1,131 @@
+/* General container styling, mirroring ScoreDisplay */
+.wallet-display {
+  position: fixed;
+  scale: 1.6;
+  top: 32%;
+  right: 9%;
+  width: 200px;
+  background: rgba(10, 10, 15, 0.95);
+  padding: 16px;
+  font-family: "Courier New", monospace;
+  color: #33ff33; /* Green retro terminal color */
+  text-shadow: 0 0 8px rgba(51, 255, 51, 0.7);
+  z-index: 100;
+  pointer-events: none;
+  image-rendering: pixelated;
+  -webkit-font-smoothing: none;
+  font-smooth: never;
+}
+
+/* Scanline CRT effect - copied from ScoreDisplay.css */
+.scanlines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.1) 0px,
+    rgba(0, 0, 0, 0.1) 1px,
+    transparent 1px,
+    transparent 2px
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* Wallet title, styled like a section label */
+.wallet-title {
+  font-size: 10px;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+  opacity: 0.7;
+  font-weight: bold;
+  text-align: center;
+}
+
+/* Divider - copied from ScoreDisplay.css */
+.wallet-divider {
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(51, 255, 51, 0.5) 20%,
+    rgba(51, 255, 51, 0.5) 80%,
+    transparent
+  );
+  margin-bottom: 12px;
+}
+
+/* Styling for the list of currencies */
+.balance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.balance-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.3);
+  font-size: 14px;
+}
+
+/* Style for the 'NO DATA' placeholder */
+.balance-item.empty {
+  justify-content: center;
+  opacity: 0.5;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.balance-currency {
+  opacity: 0.8;
+  letter-spacing: 1px;
+}
+
+.balance-amount {
+  font-weight: bold;
+  color: #ffff33; /* Use a highlight color like the 'settled' score */
+  text-shadow: 0 0 12px rgba(255, 255, 51, 0.8);
+}
+
+/* Corner decorations - copied from ScoreDisplay.css */
+.corner {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #33ff33;
+  z-index: 2;
+}
+
+.corner-tl {
+  top: -2px;
+  left: -2px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.corner-tr {
+  top: -2px;
+  right: -2px;
+  border-left: none;
+  border-bottom: none;
+}
+
+.corner-bl {
+  bottom: -2px;
+  left: -2px;
+  border-right: none;
+  border-top: none;
+}
+
+.corner-br {
+  bottom: -2px;
+  right: -2px;
+  border-left: none;
+  border-top: none;
+}

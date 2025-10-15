@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, Suspense } from "react";
 import { useThree } from "@react-three/fiber";
 import { Physics, RigidBody, CuboidCollider } from "@react-three/rapier";
 import * as THREE from "three";
@@ -38,6 +38,8 @@ import ItemChoice from "./models/ItemChoice";
 import { useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { type ItemDefinition } from "../systems/itemSystem";
+import Store, { StoreMenu, type StoreItemDefinition } from "./models/Store";
+import { useWallet } from "../hooks/useWallet";
 
 interface SceneProps {
   onCameraNameChange: (name: string) => void;
@@ -68,9 +70,16 @@ interface SceneProps {
   timeOfDay: TimeOfDay;
   successfulRolls: number; // Needed for time transition progress
   itemChoices: ItemDefinition[]; // Items to choose from
+  storeChoices: ItemDefinition[];
   onItemSelected: (item: ItemDefinition) => void; // Called when item is selected
+  onDieSettledForCurrency?: (type: string) => void;
+  isStoreOpen: boolean;
+  playerBalance: number;
+  storeItems: StoreItemDefinition[];
+  onPurchase: (item: ItemDefinition) => void;
+  onCloseStore: () => void;
+  spendCurrency: (type: string, amount: number) => boolean;
 }
-
 export function Scene({
   onCameraNameChange,
   onCameraModeChange,
@@ -94,13 +103,15 @@ export function Scene({
   onSuccessfulRoll,
   onFailedRoll,
   onAttempt,
-  onDiceSettled,
   daysMarked,
   currentAttempts,
   timeOfDay,
   successfulRolls,
   itemChoices,
-  onItemSelected
+  onItemSelected,
+  onDieSettledForCurrency,
+  storeChoices,
+  spendCurrency
 }: SceneProps) {
   const { scene, camera, gl } = useThree();
   const [cinematicMode, setCinematicMode] = useState(false);
@@ -109,6 +120,7 @@ export function Scene({
   const [hasItemsOnTowerCard, setHasItemsOnTowerCard] = useState(false);
   const [hasItemsOnSunCard, setHasItemsOnSunCard] = useState(false);
 
+  console.log("Store choices:", storeChoices);
   // Store yaw (left/right) and pitch (up/down) separately for FPS camera
   const yawRef = useRef(0);
   const pitchRef = useRef(0);
@@ -152,6 +164,14 @@ export function Scene({
       onSunCardItemsChange(diceIds);
     },
     [onSunCardItemsChange]
+  );
+
+  const handleCardItemsChange = useCallback(
+    (sunCardDiceIDs: number[], towerCardDiceIDs: number[]) => {
+      handleSunCardItemsChange(sunCardDiceIDs);
+      handleTowerCardItemsChange(towerCardDiceIDs);
+    },
+    [handleSunCardItemsChange, handleTowerCardItemsChange]
   );
 
   const toggleCamera = useCallback(() => {
@@ -260,11 +280,17 @@ export function Scene({
     cameraRef.current = camera;
   }, [camera]);
 
-  // Reset dice when throwable counts change in DevPanel
+  // Update dice pool when throwable counts change (preserves transformations on existing dice)
   useEffect(() => {
     if (diceManagerRef.current) {
-      console.log("Dice counts changed - resetting all dice");
-      diceManagerRef.current.resetDice();
+      console.log("Dice counts changed - updating dice pool");
+      diceManagerRef.current.updateDicePool({
+        d6: diceCount,
+        coins: coinCount,
+        d3: d3Count,
+        d4: d4Count,
+        thumbtacks: thumbTackCount
+      });
     }
   }, [diceCount, coinCount, d3Count, d4Count, thumbTackCount]);
 
@@ -277,6 +303,78 @@ export function Scene({
       );
 
       if (!diceManagerRef.current) return;
+
+      // Perform raycast to check what surface we're clicking on
+      const raycaster = new THREE.Raycaster();
+      let mouse: THREE.Vector2;
+
+      if (document.pointerLockElement) {
+        // First-person mode - raycast from center of screen
+        mouse = new THREE.Vector2(0, 0);
+      } else {
+        // Cinematic mode - raycast from mouse position
+        const rect = gl.domElement.getBoundingClientRect();
+        mouse = new THREE.Vector2(
+          ((event.clientX - rect.left) / rect.width) * 2 - 1,
+          -((event.clientY - rect.top) / rect.height) * 2 + 1
+        );
+      }
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(scene.children, true);
+
+      // Check if we hit an item choice (they're inside Physics, which is in scene.children)
+      // Item choices are named "ItemChoice" or have specific materials/geometries
+      const hitItemChoice = intersects.some((intersect) => {
+        const obj = intersect.object;
+        // Check if this object or any parent is part of an item choice
+        let current: THREE.Object3D | null = obj;
+        while (current) {
+          // Item choices are meshes with specific names or are children of groups positioned at item locations
+          if (
+            current.name === "ItemChoice" ||
+            (current.parent && current.parent.name === "ItemChoice")
+          ) {
+            return true;
+          }
+          current = current.parent;
+        }
+        return false;
+      });
+
+      if (hitItemChoice) {
+        console.log("🚫 Clicked on item choice - not throwing dice");
+        return;
+      }
+
+      // Check if we hit a valid throwable surface (floor, furniture, receptacle)
+      const validSurfaceNames = [
+        "Ground",
+        "Floor",
+        "Furniture",
+        "Receptacle",
+        "Table",
+        "Bed",
+        "Bureau",
+        "TVStand"
+      ];
+      const hitValidSurface = intersects.some((intersect) => {
+        const obj = intersect.object;
+        let current: THREE.Object3D | null = obj;
+        while (current) {
+          if (validSurfaceNames.some((name) => current!.name.includes(name))) {
+            return true;
+          }
+          current = current.parent;
+        }
+        // Also allow if we hit the floor plane (y near 0)
+        return intersect.point.y < 0.1;
+      });
+
+      if (!hitValidSurface && intersects.length > 0) {
+        console.log("🚫 Not clicking on valid throwing surface");
+        return;
+      }
 
       // Priority 1: If there are settled dice, pick them up first AND evaluate round
       if (diceManagerRef.current.hasSettledDice()) {
@@ -382,7 +480,15 @@ export function Scene({
         }
       }
     },
-    [camera, gl, onAttempt, onSuccessfulRoll, onFailedRoll, currentAttempts]
+    [
+      camera,
+      gl,
+      onAttempt,
+      onSuccessfulRoll,
+      onFailedRoll,
+      currentAttempts,
+      itemChoices.length
+    ]
   );
 
   useEffect(() => {
@@ -430,177 +536,204 @@ export function Scene({
       />
 
       {/* Test model - thumb tack on receptacle */}
-      <primitive
+      {/* <primitive
         object={thumb.scene}
         position={getThumbPosition()}
         scale={0.145}
         rotation={[Math.PI / 2.1, Math.PI, 0.7]}
-      />
+      /> */}
       <primitive
         object={table.scene}
         position={[0, -0.01, 2.21]}
         scale={3}
         rotation={[0, Math.PI / 2, 0]}
       />
-      <primitive
+      {/* <primitive
         object={key.scene}
         position={[0.13, 0.8, 2.18]}
         scale={0.3}
         rotation={[0, Math.PI / 2, 0]}
-      />
+      /> */}
       <primitive
         object={television.scene}
-        position={[-4, .01, 4.21]}
+        position={[-4, 0.01, 4.21]}
         scale={1}
-        rotation={[0, Math.PI / .31, 0]}
+        rotation={[0, Math.PI / 0.31, 0]}
       />
 
-      {/* Physics world for dice */}
-      <Physics gravity={[0, -10, 0]}>
-        <DiceManager
-          ref={diceManagerRef}
-          diceCount={diceCount}
-          coinCount={coinCount}
-          d3Count={d3Count}
-          d4Count={d4Count}
-          thumbTackCount={thumbTackCount}
-          onScoreUpdate={onDiceScoreChange}
-          shaderEnabled={diceShaderEnabled}
-          cardEnabled={towerCardEnabled}
-          onCardItemsChange={handleTowerCardItemsChange}
-        />
-
-        {/* Ground plane - using explicit CuboidCollider */}
-        <RigidBody
-          type="fixed"
-          position={[0, -0.05, 0]}
-          friction={0.8}
-          restitution={0.2}
-        >
-          <CuboidCollider args={[10, 0.05, 10]} />
-        </RigidBody>
-
-        {/* Invisible boundary walls using CuboidCollider */}
-        {/* Back wall */}
-        <RigidBody type="fixed" position={[0, 1.5, -5]} friction={0.5}>
-          <CuboidCollider args={[5, 1.5, 0.1]} />
-        </RigidBody>
-        {/* Front wall */}
-        <RigidBody type="fixed" position={[0, 1.5, 5]} friction={0.5}>
-          <CuboidCollider args={[5, 1.5, 0.1]} />
-        </RigidBody>
-        {/* Left wall */}
-        <RigidBody type="fixed" position={[-5, 1.5, 0]} friction={0.5}>
-          <CuboidCollider args={[0.1, 1.5, 5]} />
-        </RigidBody>
-        {/* Right wall */}
-        <RigidBody type="fixed" position={[5, 1.5, 0]} friction={0.5}>
-          <CuboidCollider args={[0.1, 1.5, 5]} />
-        </RigidBody>
-
-        {/* Furniture colliders */}
-        {/* Bed - Combined bounding box for entire bed */}
-        <RigidBody
-          type="fixed"
-          position={[-2, 0.4, -2]}
-          friction={0.6}
-          restitution={0.3}
-        >
-          <CuboidCollider args={[1.6, 0.5, 2.1]} />
-        </RigidBody>
-
-        {/* Bureau - Including drawers */}
-        <RigidBody
-          type="fixed"
-          position={[3, 0.8, -4.1]}
-          friction={0.5}
-          restitution={0.2}
-        >
-          <CuboidCollider args={[0.9, 0.6, 0.55]} />
-        </RigidBody>
-
-        {/* TV Stand - Combined bounding box */}
-        <RigidBody
-          type="fixed"
-          position={[0, 0.9, -4.4]}
-          friction={0.5}
-          restitution={0.2}
-        >
-          <CuboidCollider args={[1.25, 1.0, 0.4]} />
-        </RigidBody>
-
-        {/* Coffee Table - In second room */}
-        <RigidBody
-          type="fixed"
-          position={[0, 0.5, 10]}
-          friction={0.5}
-          restitution={0.2}
-        >
-          <CuboidCollider args={[0.9, 0.25, 0.6]} />
-        </RigidBody>
-
-        {/* Dice Receptacle - now includes its own collision boxes */}
-        <DiceReceptacle
-          position={RECEPTACLE_POSITION}
-          hellFactor={hellFactor}
-          spotlightHeight={spotlightHeight}
-          spotlightIntensity={spotlightIntensity}
-          spotlightAngle={spotlightAngle}
-        />
-
-        {/* Hourglass - physics-enabled object on receptacle */}
-        <Hourglass
-          position={getHourglassPosition()}
-          hellFactor={hellFactor}
-          onBumped={() => console.log("⏳ Hourglass was bumped by dice!")}
-        />
-
-        {/* Tower Card - must be inside Physics for sensor collision detection */}
-        {towerCardEnabled && (
-          <Card
-            position={getTowerCardPosition()}
-            cardType="tower"
-            hellFactor={hellFactor}
-            hasItemOnTop={hasItemsOnTowerCard}
-            showDebugBounds={showCardDebugBounds}
-            onDiceEnter={(diceId) => {
-              if (diceManagerRef.current) {
-                console.log(
-                  "🔮 Tower Card collision detected - applying transformation to die",
-                  diceId
-                );
-                // DiceManager will handle the transformation
-                (diceManagerRef.current as any).applyCardTransformation?.(
-                  diceId
-                );
-              }
-            }}
+      <Suspense fallback={null}>
+        {/* Physics world for dice */}
+        <Physics gravity={[0, -10, 0]}>
+          <DiceManager
+            ref={diceManagerRef}
+            diceCount={diceCount}
+            coinCount={coinCount}
+            d3Count={d3Count}
+            d4Count={d4Count}
+            thumbTackCount={thumbTackCount}
+            onScoreUpdate={onDiceScoreChange}
+            shaderEnabled={diceShaderEnabled}
+            cardEnabled={towerCardEnabled || sunCardEnabled}
+            onCardItemsChange={handleCardItemsChange}
+            onCoinSettled={onDieSettledForCurrency}
           />
-        )}
 
-        {/* Sun Card - must be inside Physics for sensor collision detection */}
-        {sunCardEnabled && (
-          <Card
-            position={getSunCardPosition()}
-            cardType="sun"
+          {/* Ground plane - using explicit CuboidCollider */}
+          <RigidBody
+            type="fixed"
+            position={[0, -0.05, 0]}
+            friction={0.8}
+            restitution={0.2}
+          >
+            <CuboidCollider args={[10, 0.05, 10]} />
+          </RigidBody>
+
+          {/* Invisible boundary walls using CuboidCollider */}
+          {/* Back wall */}
+          <RigidBody type="fixed" position={[0, 1.5, -5]} friction={0.5}>
+            <CuboidCollider args={[5, 1.5, 0.1]} />
+          </RigidBody>
+          {/* Front wall */}
+          <RigidBody type="fixed" position={[0, 1.5, 5]} friction={0.5}>
+            <CuboidCollider args={[5, 1.5, 0.1]} />
+          </RigidBody>
+          {/* Left wall */}
+          <RigidBody type="fixed" position={[-5, 1.5, 0]} friction={0.5}>
+            <CuboidCollider args={[0.1, 1.5, 5]} />
+          </RigidBody>
+          {/* Right wall */}
+          <RigidBody type="fixed" position={[5, 1.5, 0]} friction={0.5}>
+            <CuboidCollider args={[0.1, 1.5, 5]} />
+          </RigidBody>
+
+          {/* Furniture colliders */}
+          {/* Bed - Combined bounding box for entire bed */}
+          <RigidBody
+            type="fixed"
+            position={[-2, 0.4, -2]}
+            friction={0.6}
+            restitution={0.3}
+          >
+            <CuboidCollider args={[1.6, 0.5, 2.1]} />
+          </RigidBody>
+
+          {/* Bureau - Including drawers */}
+          <RigidBody
+            type="fixed"
+            position={[3, 0.8, -4.1]}
+            friction={0.5}
+            restitution={0.2}
+          >
+            <CuboidCollider args={[0.9, 0.6, 0.55]} />
+          </RigidBody>
+
+          {/* TV Stand - Combined bounding box */}
+          <RigidBody
+            type="fixed"
+            position={[0, 0.9, -4.4]}
+            friction={0.5}
+            restitution={0.2}
+          >
+            <CuboidCollider args={[1.25, 1.0, 0.4]} />
+          </RigidBody>
+
+          {/* Coffee Table - In second room */}
+          <RigidBody
+            type="fixed"
+            position={[0, 0.5, 10]}
+            friction={0.5}
+            restitution={0.2}
+          >
+            <CuboidCollider args={[0.9, 0.25, 0.6]} />
+          </RigidBody>
+
+          {/* Dice Receptacle - now includes its own collision boxes */}
+          <DiceReceptacle
+            position={RECEPTACLE_POSITION}
             hellFactor={hellFactor}
-            hasItemOnTop={hasItemsOnSunCard}
-            showDebugBounds={showCardDebugBounds}
-            onDiceEnter={(diceId) => {
-              if (diceManagerRef.current) {
-                console.log(
-                  "🔮 Sun Card collision detected - applying transformation to die",
-                  diceId
-                );
-                // DiceManager will handle the transformation
-                (diceManagerRef.current as any).applyCardTransformation?.(
-                  diceId
-                );
-              }
-            }}
+            spotlightHeight={spotlightHeight}
+            spotlightIntensity={spotlightIntensity}
+            spotlightAngle={spotlightAngle}
           />
-        )}
-      </Physics>
+
+          {/* Hourglass - physics-enabled object on receptacle */}
+          <Hourglass
+            position={getHourglassPosition()}
+            hellFactor={hellFactor}
+            onBumped={() => console.log("⏳ Hourglass was bumped by dice!")}
+          />
+
+          {/* Tower Card - must be inside Physics for sensor collision detection */}
+          {towerCardEnabled && (
+            <Card
+              position={getTowerCardPosition()}
+              cardType="tower"
+              hellFactor={hellFactor}
+              hasItemOnTop={hasItemsOnTowerCard}
+              showDebugBounds={showCardDebugBounds}
+              onDiceEnter={(diceId) => {
+                if (diceManagerRef.current) {
+                  console.log(
+                    "🔮 Tower Card collision detected - applying transformation to die",
+                    diceId
+                  );
+                  diceManagerRef.current.applyCardTransformation?.(
+                    diceId,
+                    "tower"
+                  );
+                }
+              }}
+            />
+          )}
+
+          {/* Sun Card - must be inside Physics for sensor collision detection */}
+          {sunCardEnabled && (
+            <Card
+              position={getSunCardPosition()}
+              cardType="sun"
+              hellFactor={hellFactor}
+              hasItemOnTop={hasItemsOnSunCard}
+              showDebugBounds={showCardDebugBounds}
+              onDiceEnter={(diceId) => {
+                if (diceManagerRef.current) {
+                  console.log(
+                    "☀️ Sun Card collision detected - applying transformation to die",
+                    diceId
+                  );
+                  diceManagerRef.current.applyCardTransformation?.(
+                    diceId,
+                    "sun"
+                  );
+                }
+              }}
+            />
+          )}
+
+          {/* Store Choices */}
+          {storeChoices.map((item, index) => (
+            <ItemChoice
+              key={`store-${index}`}
+              item={item}
+              position={[-0.3 + index * 0.3, 0.85, 2.68]}
+              // onPurchase is called on success to add the item
+              onPurchase={() => onItemSelected(item)}
+              // spendCurrency handles the transaction
+              spendCurrency={() => spendCurrency("cents", item.price || 0)}
+            />
+          ))}
+
+          {/* Free Item Choices */}
+          {itemChoices.map((item, index) => (
+            <ItemChoice
+              key={`reward-${index}`}
+              item={item}
+              position={[-0.3 + index * 0.3, 0.85, 2.2]}
+              onPurchase={() => onItemSelected(item)}
+              spendCurrency={() => true}
+            />
+          ))}
+        </Physics>
+      </Suspense>
 
       {/* House structure (floors, walls, stairs) */}
       <House hellFactor={hellFactor} />
@@ -619,31 +752,6 @@ export function Scene({
         hellFactor={hellFactor}
         daysMarked={daysMarked}
       />
-
-      {/* Item Choices - appear on table next to receptacle */}
-      {itemChoices.length > 0 && (
-        <>
-          <ItemChoice
-            item={itemChoices[0]}
-            position={[-0.3, 0.75, 2.2]}
-            onSelect={() => onItemSelected(itemChoices[0])}
-          />
-          {itemChoices[1] && (
-            <ItemChoice
-              item={itemChoices[1]}
-              position={[0, 0.75, 2.2]}
-              onSelect={() => onItemSelected(itemChoices[1])}
-            />
-          )}
-          {itemChoices[2] && (
-            <ItemChoice
-              item={itemChoices[2]}
-              position={[0.3, 0.75, 2.2]}
-              onSelect={() => onItemSelected(itemChoices[2])}
-            />
-          )}
-        </>
-      )}
     </>
   );
 }

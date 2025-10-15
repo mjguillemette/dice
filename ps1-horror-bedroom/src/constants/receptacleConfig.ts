@@ -15,7 +15,7 @@ export const RECEPTACLE_DIMENSIONS = {
   depth: 0.6,
   baseThickness: 0.03,
   wallHeight: 0.08,
-  wallThickness: 0.04,
+  wallThickness: 0.04
 };
 
 /**
@@ -34,7 +34,7 @@ export function getReceptacleBounds() {
     minX: x - innerWidth / 2,
     maxX: x + innerWidth / 2,
     minZ: z - innerDepth / 2,
-    maxZ: z + innerDepth / 2,
+    maxZ: z + innerDepth / 2
   };
 }
 
@@ -60,9 +60,9 @@ export function getTowerCardPosition(): [number, number, number] {
   const innerDepth = depth - wallThickness * 20;
 
   return [
-    x + innerWidth / 2 - 1.465 / 2 - 0.05, // Right edge minus half card width minus margin
+    x + innerWidth / 2 - 1.465 / 2.3 - 0.05, // Right edge minus half card width minus margin
     y + baseThickness + 0.012, // On top of felt surface
-    z - innerDepth / 1 + 0.295 / 2 + 0.05, // Top edge minus half card length minus margin
+    z - innerDepth / 1 + 0.295 / 4 - 0.03 // Top edge minus half card length minus margin
   ];
 }
 
@@ -79,9 +79,9 @@ export function getSunCardPosition(): [number, number, number] {
   const innerDepth = depth - wallThickness * 20;
 
   return [
-    x - innerWidth / 2 + .465 / 2 + 0.22, // Left edge plus half card width plus margin
+    x - innerWidth / 2 + 0.465 / 2 + 0.22, // Left edge plus half card width plus margin
     y + baseThickness + 0.012, // On top of felt surface
-    z + innerDepth / 1 - 0.295 / 4 + .49, // Bottom edge plus half card length plus margin
+    z + innerDepth / 1 - 0.295 / 4 + 0.49 // Bottom edge plus half card length plus margin
   ];
 }
 
@@ -101,7 +101,7 @@ export function getThumbPosition(): [number, number, number] {
   return [
     x + 0.32, // Slightly right of center
     y + baseThickness + 0.016, // On felt surface
-    z + 0.11, // Slightly toward back
+    z + 0.11 // Slightly toward back
   ];
 }
 
@@ -118,9 +118,9 @@ export function getHourglassPosition(): [number, number, number] {
   const hourglassHeight = 0.08;
 
   return [
-    x - innerWidth / 2 + 0.08, // Left side with margin
+    x - innerWidth / 2 - 0.08, // Left side with margin
     y + baseThickness + hourglassHeight / 2, // On felt surface, accounting for hourglass height
-    z - 0.15, // Slightly toward front
+    z - 0.15 // Slightly toward front
   ];
 }
 
@@ -141,7 +141,7 @@ export function getCardBoundsForPosition(position: [number, number, number]) {
     minX: finalX - cardWidth / 2,
     maxX: finalX + cardWidth / 2,
     minZ: finalZ - cardLength / 2,
-    maxZ: finalZ + cardLength / 2,
+    maxZ: finalZ + cardLength / 2
   };
 }
 

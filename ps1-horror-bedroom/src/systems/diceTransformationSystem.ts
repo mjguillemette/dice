@@ -7,6 +7,7 @@
 
 export type TransformationType =
   | "tarot_boost" // Landed on tarot card - increased size and weight
+  | "sun_boost" // Landed on sun card - reduce weight
   | "hourglass_curse" // Hit hourglass - time-related effect
   | "hell_corruption" // High hell factor - visual corruption
   | "blessed" // Positive effect
@@ -49,10 +50,20 @@ export const TRANSFORMATION_TEMPLATES: Record<
     sizeMultiplier: 1.03,
     massMultiplier: 1.03,
     scoreMultiplier: 1.2, // Each tarot boost increases score by 20%
-    // colorTint: 0x9966ff,
-    // emissive: 0x6633cc,
-    // emissiveIntensity: 0.2,
     description: "Mystical power flows through this die",
+    stackable: true
+  },
+
+  sun_boost: {
+    type: "sun_boost",
+    appliedAt: 0,
+    sizeMultiplier: 1,
+    massMultiplier: 0.5,
+    scoreMultiplier: 1,
+    emissive: 0xffdd77,
+    emissiveIntensity: 0.01,
+    rerollChance: 0.1, // 10% chance to reroll
+    description: "Radiates with solar energy",
     stackable: true
   },
 
@@ -106,7 +117,6 @@ export function applyTransformation(
 ): DiceTransformation[] {
   const template = TRANSFORMATION_TEMPLATES[newTransformation];
 
-  // Check if transformation already exists and isn't stackable
   if (!template.stackable) {
     const exists = existingTransformations.some(
       (t) => t.type === newTransformation
@@ -119,7 +129,6 @@ export function applyTransformation(
     }
   }
 
-  // Create new transformation with current timestamp
   const transformation: DiceTransformation = {
     ...template,
     appliedAt: Date.now()
@@ -139,31 +148,38 @@ export function calculateTransformationEffects(
   frictionMultiplier: number;
   colorTint?: number;
   emissive?: number;
+  rerollChance?: number;
   emissiveIntensity: number;
   valueModifier: number;
   scoreMultiplier: number;
 } {
+  // Initialize with base values
   let sizeMultiplier = 1.0;
   let massMultiplier = 1.0;
   let frictionMultiplier = 1.0;
   let valueModifier = 0;
   let scoreMultiplier = 1.0;
+  let rerollChance = 0; // Start with 0 chance
   let emissiveIntensity = 0;
-
-  // Take the most recent color tint and emissive
   let colorTint: number | undefined;
   let emissive: number | undefined;
 
+  // Loop through each applied transformation
   for (const t of transformations) {
-    if (t.sizeMultiplier) sizeMultiplier *= t.sizeMultiplier;
-    if (t.massMultiplier) massMultiplier *= t.massMultiplier;
-    if (t.frictionMultiplier) frictionMultiplier *= t.frictionMultiplier;
-    if (t.valueModifier) valueModifier += t.valueModifier;
-    if (t.scoreMultiplier) scoreMultiplier *= t.scoreMultiplier; // Multiply score multipliers
-    if (t.emissiveIntensity)
+    // FIX: Check for 'undefined' instead of truthiness to allow '0' as a valid value.
+    if (t.sizeMultiplier !== undefined) sizeMultiplier *= t.sizeMultiplier;
+    if (t.massMultiplier !== undefined) massMultiplier *= t.massMultiplier;
+    if (t.frictionMultiplier !== undefined)
+      frictionMultiplier *= t.frictionMultiplier;
+    if (t.valueModifier !== undefined) valueModifier += t.valueModifier;
+    if (t.scoreMultiplier !== undefined) scoreMultiplier *= t.scoreMultiplier;
+    if (t.emissiveIntensity !== undefined) {
       emissiveIntensity = Math.max(emissiveIntensity, t.emissiveIntensity);
-
-    // Use most recent tint/emissive
+    }
+    if (t.rerollChance !== undefined) {
+      rerollChance = Math.max(rerollChance, t.rerollChance);
+    }
+    // Use the tint/emissive color from the most recently applied transformation
     if (t.colorTint !== undefined) colorTint = t.colorTint;
     if (t.emissive !== undefined) emissive = t.emissive;
   }
@@ -176,7 +192,8 @@ export function calculateTransformationEffects(
     emissive,
     emissiveIntensity,
     valueModifier,
-    scoreMultiplier
+    scoreMultiplier,
+    rerollChance
   };
 }
 
@@ -187,7 +204,6 @@ export function getTransformationDescription(
   transformations: DiceTransformation[]
 ): string {
   if (transformations.length === 0) return "Normal die";
-
   return transformations.map((t) => t.description || t.type).join(", ");
 }
 
@@ -199,7 +215,6 @@ export function removeExpiredTransformations(
   maxAge?: number
 ): DiceTransformation[] {
   if (!maxAge) return transformations;
-
   const now = Date.now();
   return transformations.filter((t) => now - t.appliedAt < maxAge);
 }
