@@ -41,7 +41,7 @@ function AshtrayContent({ hellFactor }: AshtrayProps) {
   });
 
   // Load the green glow texture with PS1 settings
-  const greenGlowTexture = usePS1Texture('/src/assets/textures/greenglow.png');
+  const greenGlowTexture = usePS1Texture('greenglow.png');
 
   // Create a material for the green glow texture
   const greenGlowMaterial = useMemo(() => {
