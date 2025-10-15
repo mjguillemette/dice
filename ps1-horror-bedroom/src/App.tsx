@@ -115,7 +115,7 @@ function App() {
   );
 
   useEffect(() => {
-    const storeChoices = generateStoreChoices(inventory, 5);
+    const storeChoices = generateStoreChoices(5);
     setStoreChoices(storeChoices);
     if (gameState.phase === "item_selection" && itemChoices.length === 0) {
       const choices = generateItemChoices(inventory, 3);

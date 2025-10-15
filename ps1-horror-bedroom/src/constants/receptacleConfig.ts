@@ -23,7 +23,7 @@ export const RECEPTACLE_DIMENSIONS = {
  * Returns the inner area where dice should land (between the walls)
  */
 export function getReceptacleBounds() {
-  const [x, y, z] = RECEPTACLE_POSITION;
+  const [x, _y, z] = RECEPTACLE_POSITION;
   const { width, depth, wallThickness } = RECEPTACLE_DIMENSIONS;
 
   // Inner dimensions (subtract wall thickness from each side)
@@ -95,7 +95,7 @@ export function getCardPosition(): [number, number, number] {
  */
 export function getThumbPosition(): [number, number, number] {
   const [x, y, z] = RECEPTACLE_POSITION;
-  const { baseThickness, wallThickness } = RECEPTACLE_DIMENSIONS;
+  const { baseThickness } = RECEPTACLE_DIMENSIONS;
 
   // Place thumb on right side of receptacle, on the felt
   return [
@@ -111,7 +111,7 @@ export function getThumbPosition(): [number, number, number] {
  */
 export function getHourglassPosition(): [number, number, number] {
   const [x, y, z] = RECEPTACLE_POSITION;
-  const { width, depth, baseThickness, wallThickness } = RECEPTACLE_DIMENSIONS;
+  const { width, baseThickness, wallThickness } = RECEPTACLE_DIMENSIONS;
 
   // Place hourglass on left side of receptacle, on the felt
   const innerWidth = width - wallThickness * 2;
@@ -129,7 +129,7 @@ export function getHourglassPosition(): [number, number, number] {
  * Must match the final position after Card.tsx modifications
  */
 export function getCardBoundsForPosition(position: [number, number, number]) {
-  const [x, y, z] = position;
+  const [x, _y, z] = position;
   const cardWidth = 0.165;
   const cardLength = 0.295;
 

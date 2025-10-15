@@ -1,8 +1,6 @@
-import { useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
-import vertexShader from '../shaders/vertex.glsl';
-import fragmentShader from '../shaders/fragment.glsl';
+import { useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
 
 export interface CorruptionMaterialProps {
   normalColor: number | string;
@@ -23,9 +21,9 @@ export function useCorruptionMaterial({
   normalColor,
   hellColor,
   transparent = false,
-  opacity = 1.0,
+  opacity = 1.0
 }: CorruptionMaterialProps) {
-  const materialRef = useRef<THREE.ShaderMaterial>();
+  const materialRef = useRef<THREE.ShaderMaterial>(null);
 
   const material = useMemo(() => {
     const mat = new THREE.ShaderMaterial({
@@ -34,14 +32,12 @@ export function useCorruptionMaterial({
         hellColor: { value: new THREE.Color(hellColor) },
         hellFactor: { value: 0.0 },
         time: { value: 0.0 },
-        opacity: { value: opacity },
+        opacity: { value: opacity }
       },
-      vertexShader,
-      fragmentShader,
       transparent,
       depthWrite: true,
       depthTest: true,
-      side: THREE.FrontSide,
+      side: THREE.FrontSide
     });
 
     materialRef.current = mat;

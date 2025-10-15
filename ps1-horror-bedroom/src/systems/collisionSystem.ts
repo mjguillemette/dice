@@ -1,8 +1,5 @@
 import * as THREE from 'three';
 import {
-  UPPER_LEVEL,
-  ENTRY_LEVEL,
-  LOWER_LEVEL,
   WALL_THICKNESS,
   BED,
   BUREAU,

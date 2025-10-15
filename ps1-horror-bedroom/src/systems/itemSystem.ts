@@ -254,10 +254,7 @@ export function canOfferItem(
  * Generate a fixed list of all store items.
  * NOTE: The original random generation logic has been commented out for testing.
  */
-export function generateStoreChoices(
-  inventory: PlayerInventory,
-  count: number = 5
-): ItemDefinition[] {
+export function generateStoreChoices(count: number = 5): ItemDefinition[] {
   // --- TEMPORARY ---
   // For testing, always return a fixed list of all purchasable items.
   const storeItems = ITEM_POOL.filter((item) => item.price !== undefined);
