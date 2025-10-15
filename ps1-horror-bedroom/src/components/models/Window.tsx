@@ -27,7 +27,7 @@ function WindowContent({ hellFactor }: WindowProps) {
   });
 
   // Load the hell screen texture with PS1 settings
-  const hellScreenTexture = usePS1Texture('/src/assets/textures/hellscreen.png');
+  const hellScreenTexture = usePS1Texture('hellscreen.png');
 
   // Create a material for the hell screen texture
   const hellScreenMaterial = useMemo(() => {
