@@ -6,10 +6,13 @@ import {
   CINEMATIC_ANGLES,
   CAMERA_TRANSITION_DURATION,
   CAMERA_HOLD_DURATION,
-  MOVEMENT_SPEED,
+  MOVEMENT_SPEED
 } from "../../constants/gameConfig";
 import type { InputState } from "../../systems/inputSystem";
-import { initializeCollisionBoxes, checkCollision } from "../../systems/collisionSystem";
+import {
+  initializeCollisionBoxes,
+  checkCollision
+} from "../../systems/collisionSystem";
 
 interface CameraSystemProps {
   cinematicMode: boolean;
@@ -55,13 +58,7 @@ export function CameraSystem({
     [onCameraNameChange]
   );
 
-  const nextCamera = useCallback(() => {
-    if (cinematicMode) {
-      setCinematicAngle(currentCameraIndex + 1);
-    }
-  }, [cinematicMode, currentCameraIndex, setCinematicAngle]);
-
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
     if (!cameraRef.current) return;
 
     if (cinematicMode) {
@@ -106,14 +103,16 @@ export function CameraSystem({
 
       // Forward/backward movement (W/S)
       if (inputState.moveForward || inputState.moveBackward) {
-        const direction = Number(inputState.moveForward) - Number(inputState.moveBackward);
+        const direction =
+          Number(inputState.moveForward) - Number(inputState.moveBackward);
         cameraRef.current.position.x -= direction * moveSpeed * Math.sin(yaw);
         cameraRef.current.position.z -= direction * moveSpeed * Math.cos(yaw);
       }
 
       // Strafe left/right movement (A/D) - perpendicular to forward
       if (inputState.moveLeft || inputState.moveRight) {
-        const direction = Number(inputState.moveRight) - Number(inputState.moveLeft);
+        const direction =
+          Number(inputState.moveRight) - Number(inputState.moveLeft);
         // Right vector is forward rotated 90 degrees clockwise
         cameraRef.current.position.x += direction * moveSpeed * Math.cos(yaw);
         cameraRef.current.position.z -= direction * moveSpeed * Math.sin(yaw);

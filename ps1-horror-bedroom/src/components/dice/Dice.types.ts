@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { RapierRigidBody } from "@react-three/rapier";
 
 export interface DiceProps {
   position: [number, number, number];

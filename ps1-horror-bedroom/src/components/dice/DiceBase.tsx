@@ -104,8 +104,8 @@ const DiceBase = forwardRef<DiceHandle, DiceBaseProps>(
           hasSettledRef.current = true;
           setSettled(true);
 
-          const rot = rigidBodyRef.current.rotation();
-          const quaternion = new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w);
+          // const rot = rigidBodyRef.current.rotation();
+          // const quaternion = new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w);
           const value = Math.floor(Math.random() * maxValue) + 1; // Stub for face detection
           setDiceValue(value);
 

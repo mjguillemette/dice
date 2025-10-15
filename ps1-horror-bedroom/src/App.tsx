@@ -5,7 +5,6 @@ import DevPanel from "./components/DevPanel";
 import Crosshair from "./components/ui/Crosshair";
 import ScoreDisplay from "./components/ui/ScoreDisplay";
 import Wallet from "./components/ui/Wallet";
-import StoreMenu, { type StoreItemDefinition } from "./components/models/Store";
 import { useWallet } from "./hooks/useWallet";
 import { gameStateReducer, initialGameState } from "./systems/gameStateSystem";
 import {
@@ -17,45 +16,6 @@ import {
   generateStoreChoices
 } from "./systems/itemSystem";
 import "./App.css";
-
-// Define the items available in the store
-const storeItems: StoreItemDefinition[] = [
-  {
-    id: "buy_thumbtack",
-    name: "Thumbtack",
-    description: "A sharp, pointy classic.",
-    cost: 15,
-    type: "thumbtacks"
-  },
-  {
-    id: "buy_coin",
-    name: "Coin",
-    description: "Heads or tails?",
-    cost: 50,
-    type: "coins"
-  },
-  {
-    id: "buy_d4",
-    name: "D4",
-    description: "The caltrop of dice.",
-    cost: 150,
-    type: "d4"
-  },
-  {
-    id: "buy_d3",
-    name: "D3",
-    description: "A strange D6, scratched out and numbered 1-3 twice.",
-    cost: 200,
-    type: "d3"
-  },
-  {
-    id: "buy_d6",
-    name: "D6",
-    description: "Ol' reliable.",
-    cost: 500,
-    type: "d6"
-  }
-];
 
 function App() {
   const [cameraName, setCameraName] = useState("First Person");
@@ -239,9 +199,8 @@ function App() {
           onItemSelected={handleItemSelected}
           isStoreOpen={true}
           onDieSettledForCurrency={handleDieSettledForCurrency}
-          onPurchaseItem={handlePurchase}
-          onCloseStore={() => dispatch({ type: "EXIT_STORE" })}
-          storeItems={storeItems}
+          onPurchase={handlePurchase}
+          onCloseStore={() => dispatch({ type: "ITEM_SELECTED" })}
           spendCurrency={spendCurrency}
         />
       </Canvas>
@@ -284,7 +243,6 @@ function App() {
         onSpotlightIntensityChange={setSpotlightIntensity}
         onSpotlightAngleChange={setSpotlightAngle}
         onTestSuccessfulRoll={handleSuccessfulRoll}
-        onTestStoreOpen={() => dispatch({ type: "ENTER_STORE" })}
       />
     </div>
   );

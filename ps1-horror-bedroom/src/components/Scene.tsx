@@ -7,7 +7,6 @@ import {
   RECEPTACLE_POSITION,
   getTowerCardPosition,
   getSunCardPosition,
-  getThumbPosition,
   getHourglassPosition
 } from "../constants/receptacleConfig";
 import { type TimeOfDay } from "../systems/gameStateSystem";
@@ -70,7 +69,7 @@ interface SceneProps {
   itemChoices: ItemDefinition[]; // Items to choose from
   storeChoices: ItemDefinition[];
   onItemSelected: (item: ItemDefinition) => void; // Called when item is selected
-  onDieSettledForCurrency?: (type: string) => void;
+  onDieSettledForCurrency: (type: string, amount: number) => void;
   isStoreOpen: boolean;
   playerBalance: number;
   onPurchase: (item: ItemDefinition) => void;
@@ -122,11 +121,11 @@ export function Scene({
   const yawRef = useRef(0);
   const pitchRef = useRef(0);
 
-  // Throw charge mechanics
-  const [throwCharging, setThrowCharging] = useState(false);
-  const [throwCharge, setThrowCharge] = useState(0);
-  const chargeStartTime = useRef<number>(0);
-  const MAX_CHARGE_TIME = 1500; // 1.5 seconds max charge
+  // // Throw charge mechanics
+  // const [throwCharging, setThrowCharging] = useState(false);
+  // const [throwCharge, setThrowCharge] = useState(0);
+  // const chargeStartTime = useRef<number>(0);
+  // const MAX_CHARGE_TIME = 1500; // 1.5 seconds max charge
 
   const {
     hellFactor,
@@ -513,9 +512,9 @@ export function Scene({
   }, [gl, handleClick]);
 
   // Just a test GLTF model to verify loading
-  const thumb = useLoader(GLTFLoader, "thumb.gltf");
+  // const thumb = useLoader(GLTFLoader, "thumb.gltf");
   const table = useLoader(GLTFLoader, "table.gltf");
-  const key = useLoader(GLTFLoader, "key.gltf");
+  // const key = useLoader(GLTFLoader, "key.gltf");
   const television = useLoader(GLTFLoader, "television.gltf");
 
   return (

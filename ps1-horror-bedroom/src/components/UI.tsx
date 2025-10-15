@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useInput } from '../systems/inputSystem';
 
 interface UIProps {

@@ -5,14 +5,14 @@
 
 // ===== TYPES & INTERFACES =====
 
-export type TimeOfDay = 'morning' | 'midday' | 'night';
+export type TimeOfDay = "morning" | "midday" | "night";
 
 export type GamePhase =
-  | 'idle'            // No dice thrown, waiting for player
-  | 'throwing'        // Dice are in motion
-  | 'settled'         // Dice have settled, waiting for pickup
-  | 'evaluating'      // Evaluating if roll was successful
-  | 'item_selection'; // Choosing an item at end of day
+  | "idle" // No dice thrown, waiting for player
+  | "throwing" // Dice are in motion
+  | "settled" // Dice have settled, waiting for pickup
+  | "evaluating" // Evaluating if roll was successful
+  | "item_selection"; // Choosing an item at end of day
 
 export interface GameState {
   // Time passage
@@ -32,13 +32,13 @@ export interface GameState {
 }
 
 export type GameAction =
-  | { type: 'THROW_DICE' }
-  | { type: 'DICE_SETTLED' }
-  | { type: 'SUCCESSFUL_ROLL' }
-  | { type: 'FAILED_ROLL' }
-  | { type: 'PICKUP_DICE' }
-  | { type: 'RESET_ATTEMPTS' }
-  | { type: 'ITEM_SELECTED' }; // Player selected an item
+  | { type: "THROW_DICE" }
+  | { type: "DICE_SETTLED" }
+  | { type: "SUCCESSFUL_ROLL" }
+  | { type: "FAILED_ROLL" }
+  | { type: "PICKUP_DICE" }
+  | { type: "RESET_ATTEMPTS" }
+  | { type: "ITEM_SELECTED" };
 
 // ===== CONSTANTS =====
 
@@ -49,13 +49,13 @@ export const MAX_CALENDAR_DAYS = 31;
 // ===== INITIAL STATE =====
 
 export const initialGameState: GameState = {
-  timeOfDay: 'morning',
+  timeOfDay: "morning",
   daysMarked: 2, // Start with 1st and 2nd marked
   successfulRolls: 0,
   currentAttempts: 0,
-  phase: 'idle',
+  phase: "idle",
   totalAttempts: 0,
-  totalSuccesses: 0,
+  totalSuccesses: 0
 };
 
 // ===== STATE MACHINE LOGIC =====
@@ -63,15 +63,18 @@ export const initialGameState: GameState = {
 /**
  * Advances time of day: morning → midday → night → morning (new day)
  */
-function advanceTime(currentTime: TimeOfDay, currentDay: number): { timeOfDay: TimeOfDay; daysMarked: number } {
-  if (currentTime === 'morning') {
-    return { timeOfDay: 'midday', daysMarked: currentDay };
-  } else if (currentTime === 'midday') {
-    return { timeOfDay: 'night', daysMarked: currentDay };
+function advanceTime(
+  currentTime: TimeOfDay,
+  currentDay: number
+): { timeOfDay: TimeOfDay; daysMarked: number } {
+  if (currentTime === "morning") {
+    return { timeOfDay: "midday", daysMarked: currentDay };
+  } else if (currentTime === "midday") {
+    return { timeOfDay: "night", daysMarked: currentDay };
   } else {
     // Night → Morning (new day)
     const newDay = Math.min(currentDay + 1, MAX_CALENDAR_DAYS);
-    return { timeOfDay: 'morning', daysMarked: newDay };
+    return { timeOfDay: "morning", daysMarked: newDay };
   }
 }
 
@@ -79,19 +82,22 @@ function advanceTime(currentTime: TimeOfDay, currentDay: number): { timeOfDay: T
  * Game State Reducer
  * Handles all state transitions based on actions
  */
-export function gameStateReducer(state: GameState, action: GameAction): GameState {
-  console.log('🎲 Game State Action:', action.type, 'Current State:', {
+export function gameStateReducer(
+  state: GameState,
+  action: GameAction
+): GameState {
+  console.log("🎲 Game State Action:", action.type, "Current State:", {
     phase: state.phase,
     attempts: state.currentAttempts,
     successes: state.successfulRolls,
-    timeOfDay: state.timeOfDay,
+    timeOfDay: state.timeOfDay
   });
 
   switch (action.type) {
-    case 'THROW_DICE': {
+    case "THROW_DICE": {
       // Can only throw from idle or settled states
-      if (state.phase !== 'idle' && state.phase !== 'settled') {
-        console.warn('⚠️ Cannot throw dice in phase:', state.phase);
+      if (state.phase !== "idle" && state.phase !== "settled") {
+        console.warn("⚠️ Cannot throw dice in phase:", state.phase);
         return state;
       }
 
@@ -99,25 +105,28 @@ export function gameStateReducer(state: GameState, action: GameAction): GameStat
 
       return {
         ...state,
-        phase: 'throwing',
+        phase: "throwing",
         currentAttempts: newAttempts,
-        totalAttempts: state.totalAttempts + 1,
+        totalAttempts: state.totalAttempts + 1
       };
     }
 
-    case 'DICE_SETTLED': {
+    case "DICE_SETTLED": {
       // Dice have stopped moving, ready for evaluation
-      if (state.phase !== 'throwing') {
-        console.warn('⚠️ Dice settled but phase was not throwing:', state.phase);
+      if (state.phase !== "throwing") {
+        console.warn(
+          "⚠️ Dice settled but phase was not throwing:",
+          state.phase
+        );
       }
 
       return {
         ...state,
-        phase: 'settled',
+        phase: "settled"
       };
     }
 
-    case 'SUCCESSFUL_ROLL': {
+    case "SUCCESSFUL_ROLL": {
       // All dice in receptacle - successful round!
       // Increment roll progress and reset attempts
       const newSuccesses = state.successfulRolls + 1;
@@ -125,36 +134,44 @@ export function gameStateReducer(state: GameState, action: GameAction): GameStat
 
       let newTimeState = {
         timeOfDay: state.timeOfDay,
-        daysMarked: state.daysMarked,
+        daysMarked: state.daysMarked
       };
 
       if (shouldAdvanceTime) {
         newTimeState = advanceTime(state.timeOfDay, state.daysMarked);
-        console.log('⏰ Time advanced!', newTimeState);
+        console.log("⏰ Time advanced!", newTimeState);
       }
 
-      console.log('✅ Round complete - SUCCESS! Roll progress:', newSuccesses % ROLLS_PER_TIME_PERIOD, '/ 3');
+      console.log(
+        "✅ Round complete - SUCCESS! Roll progress:",
+        newSuccesses % ROLLS_PER_TIME_PERIOD,
+        "/ 3"
+      );
 
       // Check if we just completed a full day (night -> morning transition)
-      const justCompletedDay = shouldAdvanceTime && state.timeOfDay === 'night';
+      const justCompletedDay = shouldAdvanceTime && state.timeOfDay === "night";
 
       return {
         ...state,
-        phase: justCompletedDay ? 'item_selection' : 'idle',
+        phase: justCompletedDay ? "item_selection" : "idle",
         successfulRolls: newSuccesses,
         currentAttempts: 0, // Reset attempts after round completes
         totalSuccesses: state.totalSuccesses + 1,
-        ...newTimeState,
+        ...newTimeState
       };
     }
 
-    case 'FAILED_ROLL': {
+    case "FAILED_ROLL": {
       // Check if we've used all attempts
       const roundComplete = state.currentAttempts >= MAX_ATTEMPTS_PER_ROUND;
 
       if (roundComplete) {
         // Round is over - used all attempts without success
-        console.log('❌ Round complete - FAILED (used all', MAX_ATTEMPTS_PER_ROUND, 'attempts)');
+        console.log(
+          "❌ Round complete - FAILED (used all",
+          MAX_ATTEMPTS_PER_ROUND,
+          "attempts)"
+        );
 
         // Still increment roll progress (failed rounds count toward time passage)
         const newSuccesses = state.successfulRolls + 1;
@@ -162,57 +179,61 @@ export function gameStateReducer(state: GameState, action: GameAction): GameStat
 
         let newTimeState = {
           timeOfDay: state.timeOfDay,
-          daysMarked: state.daysMarked,
+          daysMarked: state.daysMarked
         };
 
         if (shouldAdvanceTime) {
           newTimeState = advanceTime(state.timeOfDay, state.daysMarked);
-          console.log('⏰ Time advanced!', newTimeState);
+          console.log("⏰ Time advanced!", newTimeState);
         }
 
         // Check if we just completed a full day (night -> morning transition)
-        const justCompletedDay = shouldAdvanceTime && state.timeOfDay === 'night';
+        const justCompletedDay =
+          shouldAdvanceTime && state.timeOfDay === "night";
 
         return {
           ...state,
-          phase: justCompletedDay ? 'item_selection' : 'idle',
+          phase: justCompletedDay ? "item_selection" : "idle",
           successfulRolls: newSuccesses,
           currentAttempts: 0, // Reset attempts for next round
-          ...newTimeState,
+          ...newTimeState
         };
       } else {
         // Still have attempts left in this round
-        console.log('⚠️ Attempt failed - attempts remaining:', MAX_ATTEMPTS_PER_ROUND - state.currentAttempts);
+        console.log(
+          "⚠️ Attempt failed - attempts remaining:",
+          MAX_ATTEMPTS_PER_ROUND - state.currentAttempts
+        );
         return {
           ...state,
-          phase: 'idle', // Ready for next attempt
+          phase: "idle" // Ready for next attempt
         };
       }
     }
 
-    case 'PICKUP_DICE': {
+    case "PICKUP_DICE": {
       // Player picked up dice, ready to throw again
       return {
         ...state,
-        phase: 'idle',
+        phase: "idle"
       };
     }
 
-    case 'RESET_ATTEMPTS': {
+    case "RESET_ATTEMPTS": {
       // Manual reset (e.g., exceeded max attempts)
       return {
         ...state,
         currentAttempts: 0,
-        phase: 'idle',
+        phase: "idle"
       };
     }
 
-    case 'ITEM_SELECTED': {
+    case "ITEM_SELECTED": {
       // Player selected an item, return to gameplay
-      console.log('🎁 Item selected - returning to gameplay');
+      console.log("🎁 Item selected - returning to gameplay");
       return {
         ...state,
-        phase: 'idle',
+        phase: "idle"
       };
     }
 
@@ -255,7 +276,9 @@ export function isLastAttempt(currentAttempts: number): boolean {
  * Get a summary string of current game state
  */
 export function getGameStateSummary(state: GameState): string {
-  const rollProgress = `${state.successfulRolls % ROLLS_PER_TIME_PERIOD}/${ROLLS_PER_TIME_PERIOD}`;
+  const rollProgress = `${
+    state.successfulRolls % ROLLS_PER_TIME_PERIOD
+  }/${ROLLS_PER_TIME_PERIOD}`;
   const attemptProgress = `${state.currentAttempts}/${MAX_ATTEMPTS_PER_ROUND}`;
   return `Day ${state.daysMarked} (${state.timeOfDay}) | Rolls: ${rollProgress} | Attempts: ${attemptProgress}`;
 }

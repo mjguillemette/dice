@@ -44,27 +44,11 @@ interface DevPanelProps {
 
 export function DevPanel({ cameraName, cinematicMode, hellFactor, autoCorruption, diceCount, coinCount, d3Count, d4Count, thumbTackCount, diceScore, diceShaderEnabled, towerCardEnabled, sunCardEnabled, diceOnTowerCard, diceOnSunCard, showCardDebugBounds, spotlightHeight, spotlightIntensity, spotlightAngle, timeOfDay, daysMarked, successfulRolls, currentAttempts, gamePhase, onDiceCountChange, onCoinCountChange, onD3CountChange, onD4CountChange, onThumbTackCountChange, onDiceShaderToggle, onTowerCardToggle, onSunCardToggle, onCardDebugToggle, onSpotlightHeightChange, onSpotlightIntensityChange, onSpotlightAngleChange, onTestSuccessfulRoll }: DevPanelProps) {
   const [visible, setVisible] = useState(true);
-  const [expanded, setExpanded] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    status: true,
-    time: true,
-    controls: false,
-    throwables: false,
-    receptacle: false,
-    spotlight: false,
-    corruption: false,
-  });
 
   useInput({
     onToggleUI: () => setVisible((prev) => !prev),
   });
 
-  const toggleSection = (section: string) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
-  };
 
   if (!visible) return null;
 
