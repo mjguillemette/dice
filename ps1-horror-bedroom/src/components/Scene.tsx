@@ -38,8 +38,6 @@ import ItemChoice from "./models/ItemChoice";
 import { useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { type ItemDefinition } from "../systems/itemSystem";
-import Store, { StoreMenu, type StoreItemDefinition } from "./models/Store";
-import { useWallet } from "../hooks/useWallet";
 
 interface SceneProps {
   onCameraNameChange: (name: string) => void;
@@ -75,7 +73,6 @@ interface SceneProps {
   onDieSettledForCurrency?: (type: string) => void;
   isStoreOpen: boolean;
   playerBalance: number;
-  storeItems: StoreItemDefinition[];
   onPurchase: (item: ItemDefinition) => void;
   onCloseStore: () => void;
   spendCurrency: (type: string, amount: number) => boolean;
