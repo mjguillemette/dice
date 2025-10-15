@@ -1,6 +1,6 @@
-import { useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
 
 interface WindowGlowProps {
   position: [number, number, number];
@@ -17,7 +17,7 @@ interface WindowGlowProps {
 export function WindowGlow({
   position,
   rotation = [0, 0, 0],
-  hellFactor,
+  hellFactor
 }: WindowGlowProps) {
   const light1Ref = useRef<THREE.PointLight>(null);
   const light2Ref = useRef<THREE.PointLight>(null);
@@ -33,7 +33,6 @@ export function WindowGlow({
     // Moving pattern using sine/cosine waves
     const moveX = Math.sin(time * 0.7 + position[0] * 0.3) * 0.3; // Slow horizontal drift
     const moveY = Math.cos(time * 0.5 + position[1] * 0.2) * 0.2; // Slow vertical drift
-    const moveZ = Math.sin(time * 0.3 + position[2] * 0.4) * 0.15; // Slight depth movement
 
     // Pulsing distance effect
     const pulseDistance = Math.sin(time * 1.3) * 0.2;

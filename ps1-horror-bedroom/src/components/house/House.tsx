@@ -1,8 +1,6 @@
 import { useCorruptionMaterial } from "../../hooks/useCorruptionMaterial";
-import { COFFEE_TABLE } from "../../constants/modelPositions";
 import WindowFrame from "./WindowFrame";
 import WindowGlow from "./WindowGlow";
-import CoffeeTable from "../models/CoffeeTable";
 
 interface HouseProps {
   hellFactor: number;

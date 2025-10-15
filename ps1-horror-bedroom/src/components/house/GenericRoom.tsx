@@ -1,18 +1,19 @@
-import { useCorruptionMaterial } from '../../hooks/useCorruptionMaterial';
-import { WALL_THICKNESS } from '../../constants/modelPositions';
+import { useCorruptionMaterial } from "../../hooks/useCorruptionMaterial";
+import { WALL_THICKNESS } from "../../constants/modelPositions";
+import type { JSX } from "react";
 
-export type WallSide = 'north' | 'south' | 'east' | 'west';
+export type WallSide = "north" | "south" | "east" | "west";
 
 export interface DoorOpening {
   wall: WallSide;
   offset?: number; // Offset from center of wall (0 = center)
-  width?: number;   // Door width (default 1.0m)
+  width?: number; // Door width (default 1.0m)
 }
 
 interface GenericRoomProps {
   position: [number, number, number]; // Center position [x, y, z]
-  width: number;   // X dimension
-  depth: number;   // Z dimension
+  width: number; // X dimension
+  depth: number; // Z dimension
   height?: number; // Wall height (default 5)
   doors?: DoorOpening[];
   hellFactor: number;
@@ -42,30 +43,33 @@ export function GenericRoom({
   hellFactor,
   floorColor = 0x8b7355,
   wallColor = 0xe8e4d9,
-  ceilingColor = 0xf5f5f5,
+  ceilingColor = 0xf5f5f5
 }: GenericRoomProps) {
   const [centerX, centerY, centerZ] = position;
 
   // Materials
   const floorMaterial = useCorruptionMaterial({
     normalColor: floorColor,
-    hellColor: 0x0d0000,
+    hellColor: 0x0d0000
   });
 
   const wallMaterial = useCorruptionMaterial({
     normalColor: wallColor,
-    hellColor: 0x1a0000,
+    hellColor: 0x1a0000
   });
 
   const ceilingMaterial = useCorruptionMaterial({
     normalColor: ceilingColor,
-    hellColor: 0x0d0000,
+    hellColor: 0x0d0000
   });
 
   // Update hell factor
-  if (floorMaterial.uniforms) floorMaterial.uniforms.hellFactor.value = hellFactor;
-  if (wallMaterial.uniforms) wallMaterial.uniforms.hellFactor.value = hellFactor;
-  if (ceilingMaterial.uniforms) ceilingMaterial.uniforms.hellFactor.value = hellFactor;
+  if (floorMaterial.uniforms)
+    floorMaterial.uniforms.hellFactor.value = hellFactor;
+  if (wallMaterial.uniforms)
+    wallMaterial.uniforms.hellFactor.value = hellFactor;
+  if (ceilingMaterial.uniforms)
+    ceilingMaterial.uniforms.hellFactor.value = hellFactor;
 
   const wallY = centerY + height / 2;
 
@@ -76,7 +80,7 @@ export function GenericRoom({
     wallDepth: number
   ) => {
     // Find doors on this wall
-    const doorsOnWall = doors.filter(d => d.wall === wall);
+    const doorsOnWall = doors.filter((d) => d.wall === wall);
 
     if (doorsOnWall.length === 0) {
       // No door - render full wall
@@ -106,11 +110,28 @@ export function GenericRoom({
       const leftWidth = wallLength / 2 + doorStart;
       if (leftWidth > 0.1) {
         const leftCenter = -wallLength / 2 + leftWidth / 2;
-        const leftPos = getWallSegmentPosition(wall, centerX, centerZ, width, depth, wallY, leftCenter);
-        const leftDims = getWallSegmentDimensions(wall, leftWidth, wallDepth, height);
+        const leftPos = getWallSegmentPosition(
+          wall,
+          centerX,
+          centerZ,
+          width,
+          depth,
+          wallY,
+          leftCenter
+        );
+        const leftDims = getWallSegmentDimensions(
+          wall,
+          leftWidth,
+          wallDepth,
+          height
+        );
 
         segments.push(
-          <mesh key={`${wall}-left-${idx}`} position={leftPos} material={wallMaterial}>
+          <mesh
+            key={`${wall}-left-${idx}`}
+            position={leftPos}
+            material={wallMaterial}
+          >
             <boxGeometry args={leftDims} />
           </mesh>
         );
@@ -120,11 +141,28 @@ export function GenericRoom({
       const rightWidth = wallLength / 2 - doorEnd;
       if (rightWidth > 0.1) {
         const rightCenter = wallLength / 2 - rightWidth / 2;
-        const rightPos = getWallSegmentPosition(wall, centerX, centerZ, width, depth, wallY, rightCenter);
-        const rightDims = getWallSegmentDimensions(wall, rightWidth, wallDepth, height);
+        const rightPos = getWallSegmentPosition(
+          wall,
+          centerX,
+          centerZ,
+          width,
+          depth,
+          wallY,
+          rightCenter
+        );
+        const rightDims = getWallSegmentDimensions(
+          wall,
+          rightWidth,
+          wallDepth,
+          height
+        );
 
         segments.push(
-          <mesh key={`${wall}-right-${idx}`} position={rightPos} material={wallMaterial}>
+          <mesh
+            key={`${wall}-right-${idx}`}
+            position={rightPos}
+            material={wallMaterial}
+          >
             <boxGeometry args={rightDims} />
           </mesh>
         );
@@ -155,16 +193,16 @@ export function GenericRoom({
       </mesh>
 
       {/* North wall (back, -Z) */}
-      {createWallWithDoor('north', width, WALL_THICKNESS)}
+      {createWallWithDoor("north", width, WALL_THICKNESS)}
 
       {/* South wall (front, +Z) */}
-      {createWallWithDoor('south', width, WALL_THICKNESS)}
+      {createWallWithDoor("south", width, WALL_THICKNESS)}
 
       {/* East wall (right, +X) */}
-      {createWallWithDoor('east', depth, WALL_THICKNESS)}
+      {createWallWithDoor("east", depth, WALL_THICKNESS)}
 
       {/* West wall (left, -X) */}
-      {createWallWithDoor('west', depth, WALL_THICKNESS)}
+      {createWallWithDoor("west", depth, WALL_THICKNESS)}
     </group>
   );
 }
@@ -179,10 +217,14 @@ function getWallPosition(
   wallY: number
 ): [number, number, number] {
   switch (wall) {
-    case 'north': return [centerX, wallY, centerZ - depth / 2];
-    case 'south': return [centerX, wallY, centerZ + depth / 2];
-    case 'east': return [centerX + width / 2, wallY, centerZ];
-    case 'west': return [centerX - width / 2, wallY, centerZ];
+    case "north":
+      return [centerX, wallY, centerZ - depth / 2];
+    case "south":
+      return [centerX, wallY, centerZ + depth / 2];
+    case "east":
+      return [centerX + width / 2, wallY, centerZ];
+    case "west":
+      return [centerX - width / 2, wallY, centerZ];
   }
 }
 
@@ -193,11 +235,11 @@ function getWallDimensions(
   height: number
 ): [number, number, number] {
   switch (wall) {
-    case 'north':
-    case 'south':
+    case "north":
+    case "south":
       return [width, height, WALL_THICKNESS];
-    case 'east':
-    case 'west':
+    case "east":
+    case "west":
       return [WALL_THICKNESS, height, depth];
   }
 }
@@ -212,13 +254,13 @@ function getWallSegmentPosition(
   segmentOffset: number
 ): [number, number, number] {
   switch (wall) {
-    case 'north':
+    case "north":
       return [centerX + segmentOffset, wallY, centerZ - depth / 2];
-    case 'south':
+    case "south":
       return [centerX + segmentOffset, wallY, centerZ + depth / 2];
-    case 'east':
+    case "east":
       return [centerX + width / 2, wallY, centerZ + segmentOffset];
-    case 'west':
+    case "west":
       return [centerX - width / 2, wallY, centerZ + segmentOffset];
   }
 }
@@ -230,11 +272,11 @@ function getWallSegmentDimensions(
   height: number
 ): [number, number, number] {
   switch (wall) {
-    case 'north':
-    case 'south':
+    case "north":
+    case "south":
       return [segmentWidth, height, wallDepth];
-    case 'east':
-    case 'west':
+    case "east":
+    case "west":
       return [wallDepth, height, segmentWidth];
   }
 }

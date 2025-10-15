@@ -1,8 +1,12 @@
-import { useRef, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
-import { LIGHT_CONFIG, HELL_LIGHTS, TIME_OF_DAY_CONFIG } from '../../constants/gameConfig';
-import { type TimeOfDay } from '../../systems/gameStateSystem';
+import { useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
+import {
+  LIGHT_CONFIG,
+  HELL_LIGHTS,
+  TIME_OF_DAY_CONFIG
+} from "../../constants/gameConfig";
+import { type TimeOfDay } from "../../systems/gameStateSystem";
 
 interface LightingRigProps {
   hellFactor: number;
@@ -10,7 +14,11 @@ interface LightingRigProps {
   timeProgress: number; // 0-1 progress toward next time period
 }
 
-export function LightingRig({ hellFactor, timeOfDay, timeProgress }: LightingRigProps) {
+export function LightingRig({
+  hellFactor,
+  timeOfDay,
+  timeProgress
+}: LightingRigProps) {
   // Main lights
   const ceilingLightRef = useRef<THREE.PointLight>(null);
   const windowLightRef = useRef<THREE.DirectionalLight>(null);
@@ -28,7 +36,11 @@ export function LightingRig({ hellFactor, timeOfDay, timeProgress }: LightingRig
   const hellLight5Ref = useRef<THREE.PointLight>(null);
 
   // Helper function to get time-of-day config with smooth transitions
-  const getTimeConfig = (time: TimeOfDay, nextTime: TimeOfDay, progress: number) => {
+  const getTimeConfig = (
+    time: TimeOfDay,
+    nextTime: TimeOfDay,
+    progress: number
+  ) => {
     const current = TIME_OF_DAY_CONFIG[time];
     const next = TIME_OF_DAY_CONFIG[nextTime];
 
@@ -44,20 +56,36 @@ export function LightingRig({ hellFactor, timeOfDay, timeProgress }: LightingRig
 
     return {
       fogColor: lerpColor(current.fogColor, next.fogColor, progress),
-      ambientColor: lerpColor(current.ambientColor, next.ambientColor, progress),
-      ambientIntensity: lerp(current.ambientIntensity, next.ambientIntensity, progress),
+      ambientColor: lerpColor(
+        current.ambientColor,
+        next.ambientColor,
+        progress
+      ),
+      ambientIntensity: lerp(
+        current.ambientIntensity,
+        next.ambientIntensity,
+        progress
+      ),
       windowColor: lerpColor(current.windowColor, next.windowColor, progress),
-      windowIntensity: lerp(current.windowIntensity, next.windowIntensity, progress),
-      ceilingIntensity: lerp(current.ceilingIntensity, next.ceilingIntensity, progress),
-      ceilingColor: lerpColor(current.ceilingColor, next.ceilingColor, progress),
+      windowIntensity: lerp(
+        current.windowIntensity,
+        next.windowIntensity,
+        progress
+      ),
+      ceilingIntensity: lerp(
+        current.ceilingIntensity,
+        next.ceilingIntensity,
+        progress
+      ),
+      ceilingColor: lerpColor(current.ceilingColor, next.ceilingColor, progress)
     };
   };
 
   // Determine next time period for smooth transitions
   const getNextTimePeriod = (current: TimeOfDay): TimeOfDay => {
-    if (current === 'morning') return 'midday';
-    if (current === 'midday') return 'night';
-    return 'morning';
+    if (current === "morning") return "midday";
+    if (current === "midday") return "night";
+    return "morning";
   };
 
   // Update lights based on corruption level and time of day
@@ -70,35 +98,46 @@ export function LightingRig({ hellFactor, timeOfDay, timeProgress }: LightingRig
 
     // Log once per second for debugging
     if (Math.floor(time) !== Math.floor(time - 0.016)) {
-      console.log('💡 LightingRig:', {
+      console.log("💡 LightingRig:", {
         timeOfDay,
         timeProgress: timeProgress.toFixed(2),
         ambientIntensity: timeConfig.ambientIntensity.toFixed(2),
         windowIntensity: timeConfig.windowIntensity.toFixed(2),
-        ceilingIntensity: timeConfig.ceilingIntensity.toFixed(2),
+        ceilingIntensity: timeConfig.ceilingIntensity.toFixed(2)
       });
     }
 
     // Ambient light: blend time of day with corruption
     if (ambientLightRef.current) {
       ambientLightRef.current.color.set(timeConfig.ambientColor);
-      ambientLightRef.current.intensity = timeConfig.ambientIntensity * (1.0 - hellFactor * 0.5);
+      ambientLightRef.current.intensity =
+        timeConfig.ambientIntensity * (1.0 - hellFactor * 0.5);
     }
 
     // Ceiling light: blend time-of-day color with corruption
     if (ceilingLightRef.current) {
       const normalCeilingColor = new THREE.Color(timeConfig.ceilingColor);
       const hellCeilingColor = new THREE.Color(LIGHT_CONFIG.ceiling.hellColor);
-      ceilingLightRef.current.color.lerpColors(normalCeilingColor, hellCeilingColor, hellFactor);
-      ceilingLightRef.current.intensity = timeConfig.ceilingIntensity - hellFactor * 0.5;
+      ceilingLightRef.current.color.lerpColors(
+        normalCeilingColor,
+        hellCeilingColor,
+        hellFactor
+      );
+      ceilingLightRef.current.intensity =
+        timeConfig.ceilingIntensity - hellFactor * 0.5;
     }
 
     // Window light: blend time-of-day with corruption
     if (windowLightRef.current) {
       const normalWindowColor = new THREE.Color(timeConfig.windowColor);
       const hellWindowColor = new THREE.Color(LIGHT_CONFIG.window.hellColor);
-      windowLightRef.current.color.lerpColors(normalWindowColor, hellWindowColor, hellFactor);
-      windowLightRef.current.intensity = timeConfig.windowIntensity * (1.0 - hellFactor * 0.8);
+      windowLightRef.current.color.lerpColors(
+        normalWindowColor,
+        hellWindowColor,
+        hellFactor
+      );
+      windowLightRef.current.intensity =
+        timeConfig.windowIntensity * (1.0 - hellFactor * 0.8);
     }
 
     // Desk lamp: warm cream -> hellfire orange
@@ -108,7 +147,8 @@ export function LightingRig({ hellFactor, timeOfDay, timeProgress }: LightingRig
         new THREE.Color(LIGHT_CONFIG.deskLamp.hellColor),
         hellFactor
       );
-      deskLampLightRef.current.intensity = LIGHT_CONFIG.deskLamp.intensity + hellFactor * 0.4;
+      deskLampLightRef.current.intensity =
+        LIGHT_CONFIG.deskLamp.intensity + hellFactor * 0.4;
     }
 
     // TV screen: bright blue -> blood red
@@ -118,7 +158,8 @@ export function LightingRig({ hellFactor, timeOfDay, timeProgress }: LightingRig
         new THREE.Color(LIGHT_CONFIG.tv.hellColor),
         hellFactor
       );
-      tvLightRef.current.intensity = LIGHT_CONFIG.tv.intensity + hellFactor * 0.6;
+      tvLightRef.current.intensity =
+        LIGHT_CONFIG.tv.intensity + hellFactor * 0.6;
     }
 
     // Corner lights dim and turn red
@@ -130,25 +171,31 @@ export function LightingRig({ hellFactor, timeOfDay, timeProgress }: LightingRig
 
     if (corner1LightRef.current) {
       corner1LightRef.current.color.copy(cornerColor);
-      corner1LightRef.current.intensity = LIGHT_CONFIG.corner1.intensity * (1.0 - hellFactor * 0.5);
+      corner1LightRef.current.intensity =
+        LIGHT_CONFIG.corner1.intensity * (1.0 - hellFactor * 0.5);
     }
 
     if (corner2LightRef.current) {
       corner2LightRef.current.color.copy(cornerColor);
-      corner2LightRef.current.intensity = LIGHT_CONFIG.corner2.intensity * (1.0 - hellFactor * 0.5);
+      corner2LightRef.current.intensity =
+        LIGHT_CONFIG.corner2.intensity * (1.0 - hellFactor * 0.5);
     }
 
     // Hell lights fade in progressively with pulsing effect
     const pulse = Math.sin(time * 2.3) * Math.cos(time * 1.7) * 0.5 + 0.5;
     const hellIntensity = hellFactor * 0.8;
 
-    [hellLight1Ref, hellLight2Ref, hellLight3Ref, hellLight4Ref, hellLight5Ref].forEach(
-      (lightRef, index) => {
-        if (lightRef.current) {
-          lightRef.current.intensity = hellIntensity * (0.8 + pulse * 0.4);
-        }
+    [
+      hellLight1Ref,
+      hellLight2Ref,
+      hellLight3Ref,
+      hellLight4Ref,
+      hellLight5Ref
+    ].forEach((lightRef, _index) => {
+      if (lightRef.current) {
+        lightRef.current.intensity = hellIntensity * (0.8 + pulse * 0.4);
       }
-    );
+    });
   });
 
   return (

@@ -131,7 +131,7 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
     }, [initialVelocity, initialAngularVelocity, position, diceId]);
 
     // Animate scale changes smoothly
-    useFrame((state, delta) => {
+    useFrame((_state, delta) => {
       // Smooth scale animation
       if (Math.abs(targetScaleRef.current - currentScaleRef.current) > 0.001) {
         const lerpSpeed = 8.0; // How fast the animation happens
@@ -461,7 +461,7 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
     }, [maxValue, d6Textures, coinTextures]);
 
     // Animate pulse effect when settled (only if shader is enabled) and colored tints for special states
-    useFrame((state) => {
+    useFrame((_state) => {
       if (meshRef.current) {
         const material = meshRef.current.material;
         const meshMaterials = Array.isArray(material) ? material : [material];

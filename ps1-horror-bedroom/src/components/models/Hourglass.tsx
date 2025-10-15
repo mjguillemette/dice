@@ -1,6 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { RigidBody, CuboidCollider } from "@react-three/rapier";
-import type { RigidBody as RapierRigidBody } from "@react-three/rapier";
+import { RigidBody, CuboidCollider, RapierRigidBody } from "@react-three/rapier";
 import * as THREE from "three";
 
 interface HourglassProps {

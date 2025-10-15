@@ -196,12 +196,7 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
     };
 
     const throwDice = useCallback(
-      (
-        clickPosition: THREE.Vector3,
-        throwOrigin?: THREE.Vector3,
-        chargeAmount: number = 0.5,
-        cameraDirection?: THREE.Vector3
-      ) => {
+      (clickPosition: THREE.Vector3, throwOrigin?: THREE.Vector3) => {
         if (isThrowing) return;
 
         generationRef.current += 1;
@@ -654,7 +649,6 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
           );
         }
 
-        let dieScore = value;
         let dieTransformations: DiceTransformation[] = [];
 
         setDiceInstances((prev) => {

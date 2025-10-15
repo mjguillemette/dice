@@ -1,13 +1,16 @@
-import { ReactNode } from 'react';
-import { RigidBody, CuboidCollider } from '@react-three/rapier';
-import { Vector3 } from 'three';
+import type { ReactNode } from "react";
+import { RigidBody, CuboidCollider } from "@react-three/rapier";
 
 /**
  * Collision shape definitions
  */
 export type CollisionShape =
-  | { type: 'box'; size: [number, number, number]; offset?: [number, number, number] }
-  | { type: 'compound'; shapes: CollisionShape[] };
+  | {
+      type: "box";
+      size: [number, number, number];
+      offset?: [number, number, number];
+    }
+  | { type: "compound"; shapes: CollisionShape[] };
 
 /**
  * Physical object configuration
@@ -52,19 +55,22 @@ export function PhysicalObject({
   restitution = 0.2,
   mass,
   rotation,
-  children,
+  children
 }: PhysicalObjectProps) {
-  const renderCollider = (shape: CollisionShape, index: number = 0) => {
-    if (shape.type === 'box') {
+  const renderCollider = (
+    shape: CollisionShape,
+    index: number = 0
+  ): React.ReactNode => {
+    if (shape.type === "box") {
       const offset = shape.offset || [0, 0, 0];
       return (
         <CuboidCollider
           key={index}
-          args={shape.size.map(s => s / 2) as [number, number, number]}
+          args={shape.size.map((s) => s / 2) as [number, number, number]}
           position={offset}
         />
       );
-    } else if (shape.type === 'compound') {
+    } else if (shape.type === "compound") {
       return shape.shapes.map((s, i) => renderCollider(s, i));
     }
     return null;
@@ -72,7 +78,7 @@ export function PhysicalObject({
 
   return (
     <RigidBody
-      type={mass === undefined ? 'fixed' : 'dynamic'}
+      type={mass === undefined ? "fixed" : "dynamic"}
       position={position}
       rotation={rotation}
       friction={friction}
@@ -83,9 +89,7 @@ export function PhysicalObject({
       {renderCollider(collision)}
 
       {/* Visual geometry */}
-      <group>
-        {children}
-      </group>
+      <group>{children}</group>
     </RigidBody>
   );
 }

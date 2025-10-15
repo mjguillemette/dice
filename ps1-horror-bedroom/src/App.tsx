@@ -202,6 +202,7 @@ function App() {
           onPurchase={handlePurchase}
           onCloseStore={() => dispatch({ type: "ITEM_SELECTED" })}
           spendCurrency={spendCurrency}
+          playerBalance={balances.cents}
         />
       </Canvas>
 

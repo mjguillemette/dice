@@ -11,31 +11,43 @@ interface CardProps {
   hasItemOnTop: boolean; // Whether dice have landed on this card
   showDebugBounds?: boolean; // Whether to show the detection bounds
   onDiceEnter?: (diceId: number) => void; // Called when a die enters the card area
-  cardType?: 'tower' | 'sun'; // Type of card texture to use
+  cardType?: "tower" | "sun"; // Type of card texture to use
 }
 
 /**
  * Card Component - A flat card that sits on the receptacle
  * Detects when dice land on top of it
  */
-export function Card({ position, hellFactor, hasItemOnTop, showDebugBounds = false, onDiceEnter, cardType = 'tower' }: CardProps) {
+export function Card({
+  position,
+  hellFactor,
+  hasItemOnTop,
+  showDebugBounds = false,
+  onDiceEnter,
+  cardType = "tower"
+}: CardProps) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const [recentCollisions, setRecentCollisions] = useState<Set<number>>(new Set());
+  const [recentCollisions, setRecentCollisions] = useState<Set<number>>(
+    new Set()
+  );
 
   // Card dimensions - Tarot, longer than a playing card
   const cardWidth = 0.165;
   const cardLength = 0.295;
-  const cardThickness = 0.002;
+  const cardThickness = 0.002 * hellFactor;
 
   // Calculate final position (don't mutate the prop)
   const finalPosition: [number, number, number] = [
     position[0] + cardWidth / 2, // Center on receptacle
-    position[1], // Keep Y position (on felt surface)
-    position[2] - cardLength / 2, // Adjust Z position
+    position[1] + cardThickness / 2, // Keep Y position 
+    position[2] - cardLength / 2 // Adjust Z position
   ];
 
   // Load the appropriate texture based on card type
-  const texture = useLoader(THREE.TextureLoader, cardType === 'sun' ? sunTexture : towerTexture);
+  const texture = useLoader(
+    THREE.TextureLoader,
+    cardType === "sun" ? sunTexture : towerTexture
+  );
 
   // Create material with texture
   const cardMaterial = useMemo(() => {
@@ -48,13 +60,15 @@ export function Card({ position, hellFactor, hasItemOnTop, showDebugBounds = fal
       map: texture,
       roughness: 0.7,
       metalness: 0.1,
-      emissive: hasItemOnTop ? new THREE.Color(0x00ff00) : new THREE.Color(0x000000),
-      emissiveIntensity: hasItemOnTop ? 0.5 : 0.0,
+      emissive: hasItemOnTop
+        ? new THREE.Color(0x00ff00)
+        : new THREE.Color(0x000000),
+      emissiveIntensity: hasItemOnTop ? 0.5 : 0.0
     });
   }, [texture, hasItemOnTop]);
 
   // Card rotation (same for visual and debug bounds)
-  const cardRotation: [number, number, number] = [-Math.PI / 2, 0.00, 2.870];
+  const cardRotation: [number, number, number] = [-Math.PI / 2, 0.0, 2.87];
 
   // Create debug bounds visualization material
   const debugMaterial = useMemo(() => {
@@ -63,31 +77,33 @@ export function Card({ position, hellFactor, hasItemOnTop, showDebugBounds = fal
       transparent: true,
       opacity: 0.3,
       side: THREE.DoubleSide,
-      wireframe: false,
+      wireframe: false
     });
   }, [hasItemOnTop]);
 
   const debugWireframeMaterial = useMemo(() => {
     return new THREE.LineBasicMaterial({
       color: hasItemOnTop ? 0x00ff00 : 0xffff00,
-      linewidth: 2,
+      linewidth: 2
     });
   }, [hasItemOnTop]);
 
   // Handle collision detection with dice
-  const handleIntersectionEnter = (payload: import("@react-three/rapier").CollisionPayload) => {
+  const handleIntersectionEnter = (
+    payload: import("@react-three/rapier").CollisionPayload
+  ) => {
     const otherBody = payload.other.rigidBody;
     if (!otherBody) return;
 
     // Get the userData which should contain the dice ID
     const userData = (otherBody as any).userData;
-    if (userData && typeof userData.diceId === 'number') {
+    if (userData && typeof userData.diceId === "number") {
       const diceId = userData.diceId;
 
       // Throttle to prevent duplicate triggers
       if (!recentCollisions.has(diceId)) {
-        console.log('🔮 Die', diceId, 'touched the card!');
-        setRecentCollisions(prev => new Set(prev).add(diceId));
+        console.log("🔮 Die", diceId, "touched the card!");
+        setRecentCollisions((prev) => new Set(prev).add(diceId));
 
         if (onDiceEnter) {
           onDiceEnter(diceId);
@@ -95,7 +111,7 @@ export function Card({ position, hellFactor, hasItemOnTop, showDebugBounds = fal
 
         // Clear after 2 seconds
         setTimeout(() => {
-          setRecentCollisions(prev => {
+          setRecentCollisions((prev) => {
             const next = new Set(prev);
             next.delete(diceId);
             return next;
@@ -146,7 +162,9 @@ export function Card({ position, hellFactor, hasItemOnTop, showDebugBounds = fal
 
           {/* Wireframe outline */}
           <lineSegments position={[0, 0.01, 0]} rotation={cardRotation}>
-            <edgesGeometry args={[new THREE.PlaneGeometry(cardWidth, cardLength)]} />
+            <edgesGeometry
+              args={[new THREE.PlaneGeometry(cardWidth, cardLength)]}
+            />
             <primitive object={debugWireframeMaterial} attach="material" />
           </lineSegments>
         </group>
