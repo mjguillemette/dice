@@ -7,8 +7,7 @@ import {
   RECEPTACLE_POSITION,
   getTowerCardPosition,
   getSunCardPosition,
-  getHourglassPosition,
-  RECEPTACLE_ROTATION
+  getHourglassPosition
 } from "../constants/receptacleConfig";
 import { type TimeOfDay } from "../systems/gameStateSystem";
 import { getTimeProgressRatio } from "../systems/gameStateSystem";
