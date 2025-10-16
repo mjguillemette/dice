@@ -552,8 +552,8 @@ export function Scene({
       />
       <primitive
         object={cabinet.scene}
-        position={[-2.2, 0.8, 4.2]}
-        scale={0.3}
+        position={[-2.2, 0.0, 4.2]}
+        scale={1.4}
         rotation={[0, Math.PI / - 2, 0]}
       />
 
