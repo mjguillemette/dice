@@ -30,7 +30,8 @@ export function CameraSystem({
   inputState,
   onCameraNameChange,
   isStarting,
-  onStartAnimationFinish
+  onStartAnimationFinish,
+  gamePhase
 }: CameraSystemProps) {
   const cameraRef = useRef<THREE.PerspectiveCamera>(null);
 
@@ -72,20 +73,20 @@ export function CameraSystem({
     let targetLookAt = targetCameraLookAt.current;
 
     switch (gamePhase) {
-      case 'item_selection':
+      case "item_selection":
         targetPos = new THREE.Vector3(-1.5, 1.2, 3.5);
         targetLookAt = new THREE.Vector3(-2.2, 1.0, 4.2);
         break;
-      case 'throwing':
-      case 'settled':
+      case "throwing":
+      case "settled":
         targetPos = new THREE.Vector3(0.28, 1.8, 1.5);
         targetLookAt = new THREE.Vector3(0.28, 0.62, 2.2);
         break;
-      case 'evaluating':
+      case "evaluating":
         targetPos = new THREE.Vector3(0, 2.5, 6);
         targetLookAt = new THREE.Vector3(0, 1, 0);
         break;
-      case 'idle':
+      case "idle":
         targetPos = new THREE.Vector3(0.28, 1.6, 1.2);
         targetLookAt = new THREE.Vector3(0.28, 0.62, 2.2);
         break;
@@ -111,7 +112,7 @@ export function CameraSystem({
         cameraRef.current.lookAt(currentCameraLookAt.current);
         onStartAnimationFinish();
       }
-    } else if (cinematicMode && gamePhase === 'menu') {
+    } else if (cinematicMode && gamePhase === "menu") {
       cameraTransitionTime.current += delta;
       if (
         cameraTransitionTime.current >

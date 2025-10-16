@@ -37,8 +37,8 @@ function App() {
   const [rollHistory, setRollHistory] = useState<number[]>([]);
   const [diceSettled, setDiceSettled] = useState(false);
 
-  const [spotlightHeight, setSpotlightHeight] = useState(0.5);
-  const [spotlightIntensity, setSpotlightIntensity] = useState(0.8);
+  const [spotlightHeight, setSpotlightHeight] = useState(1.0);
+  const [spotlightIntensity, setSpotlightIntensity] = useState(1.4);
   const [spotlightAngle, setSpotlightAngle] = useState(Math.PI / 6);
 
   const [gameState, dispatch] = useReducer(gameStateReducer, initialGameState);
