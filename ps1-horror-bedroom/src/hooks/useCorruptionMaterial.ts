@@ -7,12 +7,11 @@ export interface CorruptionMaterialProps {
   hellColor: number | string;
   transparent?: boolean;
   opacity?: number;
-  intensity?: number; // controls how strongly corruption distorts lighting
+  intensity?: number;
 }
 
 /**
- * PS1-style corruption material that reacts to lighting
- * Built on top of MeshStandardMaterial for realistic shading
+ * PS1-style corruption material with lighting support
  */
 export function useCorruptionMaterial({
   normalColor,
@@ -38,7 +37,7 @@ export function useCorruptionMaterial({
       shader.uniforms.time = { value: 0.0 };
       shader.uniforms.intensity = { value: intensity };
 
-      // Add varying + hash for PS1 shimmer
+      // Inject corruption shader code
       shader.fragmentShader = shader.fragmentShader.replace(
         `#include <common>`,
         `
@@ -54,39 +53,32 @@ export function useCorruptionMaterial({
         `
       );
 
-      // Inject our corruption blend at the end of lighting
       shader.fragmentShader = shader.fragmentShader.replace(
         `#include <dithering_fragment>`,
         `
-          // Apply PS1-like banding (reduces lighting precision)
           vec3 banded = floor(directDiffuse * 4.0) / 4.0;
-
-          // Add corruption flicker
           float flicker = hash(vUv * time * 2.0) * 0.1;
-
-          // Blend normal lit color with hellColor based on hellFactor
           vec3 corrupted = mix(banded, hellColor, hellFactor + flicker * intensity);
-
           gl_FragColor = vec4(corrupted, opacity);
-
           #include <dithering_fragment>
         `
       );
 
-      materialRef.current = base as any;
+      // Store reference to shader for runtime updates
       (base as any).userData.shader = shader;
     };
 
+    materialRef.current = base;
     return base;
   }, [normalColor, hellColor, transparent, opacity, intensity]);
 
-  // Animate time
+  // Animate time each frame
   useFrame((state) => {
-    const shader = materialRef.current?.userData.shader;
+    const shader = (materialRef.current as any)?.userData?.shader;
     if (shader) shader.uniforms.time.value = state.clock.elapsedTime;
   });
 
-  // Cleanup
+  // Clean up GPU memory
   useEffect(() => {
     const mat = materialRef.current;
     return () => mat?.dispose();
@@ -96,26 +88,28 @@ export function useCorruptionMaterial({
 }
 
 /**
- * Update the corruption factor (0–1)
+ * Update hell factor (corruption level)
  */
 export function updateMaterialHellFactor(
   material: THREE.Material,
   hellFactor: number
 ) {
-  const shader = (material as any).userData?.shader;
-  if (shader)
+  const shader = (material as any)?.userData?.shader;
+  if (shader?.uniforms?.hellFactor) {
     shader.uniforms.hellFactor.value = THREE.MathUtils.clamp(hellFactor, 0, 1);
+  }
 }
 
 /**
- * Update opacity at runtime (0–1)
+ * Update opacity
  */
 export function updateMaterialOpacity(
   material: THREE.Material,
   opacity: number
 ) {
-  const shader = (material as any).userData?.shader;
-  if (shader)
+  const shader = (material as any)?.userData?.shader;
+  if (shader?.uniforms?.opacity) {
     shader.uniforms.opacity.value = THREE.MathUtils.clamp(opacity, 0, 1);
+  }
   (material as any).opacity = opacity;
 }
