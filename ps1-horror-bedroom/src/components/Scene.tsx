@@ -23,7 +23,6 @@ import Room from "./models/Room";
 import Bed from "./models/Bed";
 import Bureau from "./models/Bureau";
 import TVStand from "./models/TVStand";
-import Window from "./models/Window";
 import CeilingLight from "./models/CeilingLight";
 import Decorations from "./models/Decorations";
 import Ashtray from "./models/Ashtray";
@@ -516,6 +515,7 @@ export function Scene({
   const table = useLoader(GLTFLoader, "table.gltf");
   // const key = useLoader(GLTFLoader, "key.gltf");
   const television = useLoader(GLTFLoader, "television.gltf");
+  const cabinet = useLoader(GLTFLoader, "cabinet.gltf");
 
   return (
     <>
@@ -544,17 +544,17 @@ export function Scene({
         scale={3}
         rotation={[0, Math.PI / 2, 0]}
       />
-      {/* <primitive
-        object={key.scene}
-        position={[0.13, 0.8, 2.18]}
-        scale={0.3}
-        rotation={[0, Math.PI / 2, 0]}
-      /> */}
       <primitive
         object={television.scene}
         position={[-4, 0.01, 4.21]}
         scale={1}
         rotation={[0, Math.PI / 0.31, 0]}
+      />
+      <primitive
+        object={cabinet.scene}
+        position={[-2.2, 0.8, 4.2]}
+        scale={0.3}
+        rotation={[0, Math.PI / - 2, 0]}
       />
 
       <Suspense fallback={null}>
