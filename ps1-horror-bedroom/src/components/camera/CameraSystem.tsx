@@ -14,12 +14,15 @@ import {
   checkCollision
 } from "../../systems/collisionSystem";
 
+import type { GamePhase } from "../../systems/gameStateSystem";
+
 interface CameraSystemProps {
   cinematicMode: boolean;
   inputState: InputState;
   onCameraNameChange?: (name: string) => void;
   isStarting: boolean;
   onStartAnimationFinish: () => void;
+  gamePhase: GamePhase;
 }
 
 export function CameraSystem({
@@ -65,62 +68,80 @@ export function CameraSystem({
   useFrame((_state, delta) => {
     if (!cameraRef.current) return;
 
-    if (isStarting) {
-      const targetPos = new THREE.Vector3(0.28, 1.6, 3.2);
-      const targetLookAt = new THREE.Vector3(0.28, 0.62, 2.2);
+    let targetPos = targetCameraPos.current;
+    let targetLookAt = targetCameraLookAt.current;
 
-      cameraRef.current.position.lerp(targetPos, delta * 2);
-      currentCameraLookAt.current.lerp(targetLookAt, delta * 2);
+    switch (gamePhase) {
+      case 'item_selection':
+        targetPos = new THREE.Vector3(-1.5, 1.2, 3.5);
+        targetLookAt = new THREE.Vector3(-2.2, 1.0, 4.2);
+        break;
+      case 'throwing':
+      case 'settled':
+        targetPos = new THREE.Vector3(0.28, 1.8, 1.5);
+        targetLookAt = new THREE.Vector3(0.28, 0.62, 2.2);
+        break;
+      case 'evaluating':
+        targetPos = new THREE.Vector3(0, 2.5, 6);
+        targetLookAt = new THREE.Vector3(0, 1, 0);
+        break;
+      case 'idle':
+        targetPos = new THREE.Vector3(0.28, 1.6, 1.2);
+        targetLookAt = new THREE.Vector3(0.28, 0.62, 2.2);
+        break;
+      default:
+        // For 'menu' or other phases, use the cinematic camera logic
+        if (cinematicMode) {
+          targetPos = CINEMATIC_ANGLES[currentCameraIndex].pos;
+          targetLookAt = CINEMATIC_ANGLES[currentCameraIndex].lookAt;
+        }
+        break;
+    }
+
+    if (isStarting) {
+      const startTargetPos = new THREE.Vector3(0.28, 1.6, 1.2);
+      const startTargetLookAt = new THREE.Vector3(0.28, 0.62, 2.2);
+      cameraRef.current.position.lerp(startTargetPos, delta * 2);
+      currentCameraLookAt.current.lerp(startTargetLookAt, delta * 2);
       cameraRef.current.lookAt(currentCameraLookAt.current);
 
-      if (cameraRef.current.position.distanceTo(targetPos) < 0.01) {
-        // Once close enough, snap to final position and stop starting animation
-        cameraRef.current.position.copy(targetPos);
-        currentCameraLookAt.current.copy(targetLookAt);
+      if (cameraRef.current.position.distanceTo(startTargetPos) < 0.01) {
+        cameraRef.current.position.copy(startTargetPos);
+        currentCameraLookAt.current.copy(startTargetLookAt);
         cameraRef.current.lookAt(currentCameraLookAt.current);
         onStartAnimationFinish();
       }
-    } else if (cinematicMode) {
-      // Cinematic mode - smooth transitions between angles
+    } else if (cinematicMode && gamePhase === 'menu') {
       cameraTransitionTime.current += delta;
-
-      // Auto-advance to next angle
       if (
         cameraTransitionTime.current >
         CAMERA_HOLD_DURATION + CAMERA_TRANSITION_DURATION
       ) {
         setCinematicAngle(currentCameraIndex + 1);
       }
-
-      // Smooth transition with easing
       const transitionProgress = Math.min(
         cameraTransitionTime.current / CAMERA_TRANSITION_DURATION,
         1
       );
-
-      // Ease in-out function
       const easeProgress =
         transitionProgress < 0.5
           ? 2 * transitionProgress * transitionProgress
           : 1 - Math.pow(-2 * transitionProgress + 2, 2) / 2;
 
-      cameraRef.current.position.lerp(
-        targetCameraPos.current,
-        easeProgress * 0.1
-      );
-      currentCameraLookAt.current.lerp(
-        targetCameraLookAt.current,
-        easeProgress * 0.1
-      );
+      cameraRef.current.position.lerp(targetPos, easeProgress * 0.1);
+      currentCameraLookAt.current.lerp(targetLookAt, easeProgress * 0.1);
       cameraRef.current.lookAt(currentCameraLookAt.current);
-    } else {
-      // Free camera mode - WASD movement
-      const moveSpeed = MOVEMENT_SPEED;
+    } else if (!cinematicMode) {
+      // Free camera mode
+      // First, smoothly move to the game phase's designated position
+      cameraRef.current.position.lerp(targetPos, delta * 2);
+      currentCameraLookAt.current.lerp(targetLookAt, delta * 2);
+      cameraRef.current.lookAt(currentCameraLookAt.current);
 
-      // Get camera's forward and right vectors based on yaw rotation
+      // Then, apply player input on top
+      const moveSpeed = MOVEMENT_SPEED;
       const yaw = cameraRef.current.rotation.y;
 
-      // Forward/backward movement (W/S)
       if (inputState.moveForward || inputState.moveBackward) {
         const direction =
           Number(inputState.moveForward) - Number(inputState.moveBackward);
@@ -128,16 +149,13 @@ export function CameraSystem({
         cameraRef.current.position.z -= direction * moveSpeed * Math.cos(yaw);
       }
 
-      // Strafe left/right movement (A/D) - perpendicular to forward
       if (inputState.moveLeft || inputState.moveRight) {
         const direction =
           Number(inputState.moveRight) - Number(inputState.moveLeft);
-        // Right vector is forward rotated 90 degrees clockwise
         cameraRef.current.position.x += direction * moveSpeed * Math.cos(yaw);
         cameraRef.current.position.z -= direction * moveSpeed * Math.sin(yaw);
       }
 
-      // Apply collision detection (no boundary clamping - collision handles walls)
       const currentPos = cameraRef.current.position.clone();
       const correctedPosition = checkCollision(currentPos);
       cameraRef.current.position.copy(correctedPosition);

@@ -547,6 +547,7 @@ export function Scene({
         onCameraNameChange={onCameraNameChange}
         isStarting={isStarting}
         onStartAnimationFinish={handleStartAnimationFinish}
+        gamePhase={gameState.phase}
       />
 
       <LightingRig
