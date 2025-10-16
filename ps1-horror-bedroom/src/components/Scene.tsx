@@ -739,7 +739,7 @@ export function Scene({
       <Bed hellFactor={hellFactor} />
       <Bureau hellFactor={hellFactor} />
       <TVStand hellFactor={hellFactor} />
-      <Window hellFactor={hellFactor} />
+      {/* <Window hellFactor={hellFactor} /> */}
       <CeilingLight hellFactor={hellFactor} />
       <Decorations hellFactor={hellFactor} />
       <Ashtray hellFactor={hellFactor} />
