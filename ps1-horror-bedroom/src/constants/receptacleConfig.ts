@@ -17,7 +17,7 @@ export const RECEPTACLE_ROTATION: [number, number, number] = [
 // Receptacle dimensions (in meters)
 export const RECEPTACLE_DIMENSIONS = {
   width: 1.0,
-  depth: 0.6,
+  depth: 0.4,
   baseThickness: 0.03,
   wallHeight: 0.08,
   wallThickness: 0.04
