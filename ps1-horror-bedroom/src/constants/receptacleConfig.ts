@@ -8,6 +8,11 @@
 
 // Receptacle position in world space
 export const RECEPTACLE_POSITION: [number, number, number] = [0.28, 0.62, 2.2];
+export const RECEPTACLE_ROTATION: [number, number, number] = [
+  0,
+  Math.PI / -2,
+  0
+];
 
 // Receptacle dimensions (in meters)
 export const RECEPTACLE_DIMENSIONS = {

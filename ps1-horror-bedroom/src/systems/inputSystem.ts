@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react';
+import { GameState } from './gameStateSystem';
 
 export interface InputState {
   moveForward: boolean;
@@ -8,6 +9,7 @@ export interface InputState {
 }
 
 export interface InputCallbacks {
+  onStartGame?: () => void;
   onToggleCamera?: () => void;
   onNextCamera?: () => void;
   onIncreaseCorruption?: () => void;
@@ -16,55 +18,69 @@ export interface InputCallbacks {
   onToggleUI?: () => void;
 }
 
+import { GameState } from './gameStateSystem';
+
 /**
  * Custom hook to manage keyboard input for the game
  * @param callbacks - Object containing callback functions for various inputs
  * @returns Current input state for movement
  */
-export function useInput(callbacks: InputCallbacks = {}): InputState {
+export function useInput(
+  callbacks: InputCallbacks = {},
+  gameState: GameState
+): InputState {
   const inputState = useRef<InputState>({
     moveForward: false,
     moveBackward: false,
     moveLeft: false,
-    moveRight: false,
+    moveRight: false
   });
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      switch (e.code) {
-        case 'KeyW':
-          inputState.current.moveForward = true;
-          break;
-        case 'KeyS':
-          inputState.current.moveBackward = true;
-          break;
-        case 'KeyA':
-          inputState.current.moveLeft = true;
-          break;
-        case 'KeyD':
-          inputState.current.moveRight = true;
-          break;
-        case 'KeyC':
-          callbacks.onToggleCamera?.();
-          break;
-        case 'KeyN':
-          callbacks.onNextCamera?.();
-          break;
-        case 'KeyQ':
-          callbacks.onDecreaseCorruption?.();
-          break;
-        case 'KeyE':
-          callbacks.onIncreaseCorruption?.();
-          break;
-        case 'KeyT':
-          callbacks.onToggleAutoCorruption?.();
-          break;
-        case 'KeyH':
-          callbacks.onToggleUI?.();
-          break;
+      // Game start
+      if (gameState.phase === 'menu' && e.code === 'Enter') {
+        callbacks.onStartGame?.();
+        return; // Prevent other inputs in menu
+      }
+
+      // Gameplay controls (only active if not in menu)
+      if (gameState.phase !== 'menu') {
+        switch (e.code) {
+          case 'KeyW':
+            inputState.current.moveForward = true;
+            break;
+          case 'KeyS':
+            inputState.current.moveBackward = true;
+            break;
+          case 'KeyA':
+            inputState.current.moveLeft = true;
+            break;
+          case 'KeyD':
+            inputState.current.moveRight = true;
+            break;
+          case 'KeyC':
+            callbacks.onToggleCamera?.();
+            break;
+          case 'KeyN':
+            callbacks.onNextCamera?.();
+            break;
+          case 'KeyQ':
+            callbacks.onDecreaseCorruption?.();
+            break;
+          case 'KeyE':
+            callbacks.onIncreaseCorruption?.();
+            break;
+          case 'KeyT':
+            callbacks.onToggleAutoCorruption?.();
+            break;
+          case 'KeyH':
+            callbacks.onToggleUI?.();
+            break;
+        }
       }
     },
-    [callbacks]
+    [callbacks, gameState.phase]
   );
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {

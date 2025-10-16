@@ -7,7 +7,8 @@ import {
   RECEPTACLE_POSITION,
   getTowerCardPosition,
   getSunCardPosition,
-  getHourglassPosition
+  getHourglassPosition,
+  RECEPTACLE_ROTATION
 } from "../constants/receptacleConfig";
 import { type TimeOfDay } from "../systems/gameStateSystem";
 import { getTimeProgressRatio } from "../systems/gameStateSystem";
@@ -36,6 +37,7 @@ import ItemChoice from "./models/ItemChoice";
 import { useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { type ItemDefinition } from "../systems/itemSystem";
+import { type GameState } from "../systems/gameStateSystem";
 
 interface SceneProps {
   onCameraNameChange: (name: string) => void;
@@ -74,6 +76,8 @@ interface SceneProps {
   onPurchase: (item: ItemDefinition) => void;
   onCloseStore: () => void;
   spendCurrency: (type: string, amount: number) => boolean;
+  gameState: GameState;
+  onStartGame: () => void;
 }
 export function Scene({
   onCameraNameChange,
@@ -106,10 +110,19 @@ export function Scene({
   onItemSelected,
   onDieSettledForCurrency,
   storeChoices,
-  spendCurrency
+  spendCurrency,
+  gameState,
+  onStartGame
 }: SceneProps) {
   const { scene, camera, gl } = useThree();
-  const [cinematicMode, setCinematicMode] = useState(false);
+  const [cinematicMode, setCinematicMode] = useState(true);
+
+  useEffect(() => {
+    if (gameState.phase === "idle") {
+      setCinematicMode(false);
+      requestPointerLock();
+    }
+  }, [gameState.phase]);
   const cameraRef = useRef(camera);
   const diceManagerRef = useRef<DiceManagerHandle>(null);
   const [hasItemsOnTowerCard, setHasItemsOnTowerCard] = useState(false);
@@ -215,12 +228,16 @@ export function Scene({
     [cinematicMode]
   );
 
-  const inputState = useInput({
-    onToggleCamera: toggleCamera,
-    onIncreaseCorruption: increaseCorruption,
-    onDecreaseCorruption: decreaseCorruption,
-    onToggleAutoCorruption: toggleAutoCorruption
-  });
+  const inputState = useInput(
+    {
+      onStartGame,
+      onToggleCamera: toggleCamera,
+      onIncreaseCorruption: increaseCorruption,
+      onDecreaseCorruption: decreaseCorruption,
+      onToggleAutoCorruption: toggleAutoCorruption
+    },
+    gameState
+  );
 
   useMouseLook(handleMouseMove, !cinematicMode);
 
@@ -516,6 +533,7 @@ export function Scene({
   // const key = useLoader(GLTFLoader, "key.gltf");
   const television = useLoader(GLTFLoader, "television.gltf");
   const cabinet = useLoader(GLTFLoader, "cabinet.gltf");
+  const tray = useLoader(GLTFLoader, "tray.gltf");
 
   return (
     <>
@@ -554,9 +572,14 @@ export function Scene({
         object={cabinet.scene}
         position={[-2.2, 0.0, 4.2]}
         scale={1.4}
-        rotation={[0, Math.PI / - 2, 0]}
+        rotation={[0, Math.PI / -2, 0]}
       />
-
+      <primitive
+        object={tray.scene}
+        position={RECEPTACLE_POSITION}
+        scale={1.4}
+        rotation={RECEPTACLE_ROTATION}
+      />
       <Suspense fallback={null}>
         {/* Physics world for dice */}
         <Physics gravity={[0, -10, 0]}>
@@ -730,7 +753,7 @@ export function Scene({
           ))}
         </Physics>
       </Suspense>
- {/* position={[-2.2, 0.0, 4.2]} */}
+      {/* position={[-2.2, 0.0, 4.2]} */}
       {/* House structure (floors, walls, stairs) */}
       <House hellFactor={hellFactor} />
 

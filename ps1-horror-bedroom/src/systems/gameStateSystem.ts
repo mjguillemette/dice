@@ -8,6 +8,7 @@
 export type TimeOfDay = "morning" | "midday" | "night";
 
 export type GamePhase =
+  | "menu" // Initial menu screen
   | "idle" // No dice thrown, waiting for player
   | "throwing" // Dice are in motion
   | "settled" // Dice have settled, waiting for pickup
@@ -32,6 +33,7 @@ export interface GameState {
 }
 
 export type GameAction =
+  | { type: "START_GAME" }
   | { type: "THROW_DICE" }
   | { type: "DICE_SETTLED" }
   | { type: "SUCCESSFUL_ROLL" }
@@ -53,7 +55,7 @@ export const initialGameState: GameState = {
   daysMarked: 2, // Start with 1st and 2nd marked
   successfulRolls: 0,
   currentAttempts: 0,
-  phase: "idle",
+  phase: "menu",
   totalAttempts: 0,
   totalSuccesses: 0
 };
@@ -94,6 +96,12 @@ export function gameStateReducer(
   });
 
   switch (action.type) {
+    case "START_GAME": {
+      return {
+        ...state,
+        phase: "idle"
+      };
+    }
     case "THROW_DICE": {
       // Can only throw from idle or settled states
       if (state.phase !== "idle" && state.phase !== "settled") {

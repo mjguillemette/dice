@@ -114,6 +114,12 @@ function App() {
     [inventory]
   );
 
+  const handleStartGame = useCallback(() => {
+    dispatch({ type: "START_GAME" });
+    // You might want to request pointer lock here as well
+    // requestPointerLock(); 
+  }, []);
+
   useEffect(() => {
     const generatedStoreChoices = generateStoreChoices(5);
     setStoreChoices(generatedStoreChoices);
@@ -144,7 +150,12 @@ function App() {
       }}
     >
       {/* 2D UI Components are rendered here, outside of the Canvas */}
-      {!cinematicMode && <Crosshair />}
+      {gameState.phase === "menu" && (
+        <div className="menu-overlay">
+          <h1>Enter to Play</h1>
+        </div>
+      )}
+      {gameState.phase !== "menu" && !cinematicMode && <Crosshair />}
       <ScoreDisplay
         currentScore={diceScore}
         rollHistory={rollHistory}
@@ -203,6 +214,8 @@ function App() {
           onCloseStore={() => dispatch({ type: "ITEM_SELECTED" })}
           spendCurrency={spendCurrency}
           playerBalance={balances.cents}
+          gameState={gameState}
+          onStartGame={handleStartGame}
         />
       </Canvas>
 
