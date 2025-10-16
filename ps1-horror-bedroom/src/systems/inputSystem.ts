@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react';
-import { GameState } from './gameStateSystem';
+import type { GameState } from './gameStateSystem';
 
 export interface InputState {
   moveForward: boolean;
@@ -18,16 +18,15 @@ export interface InputCallbacks {
   onToggleUI?: () => void;
 }
 
-import { GameState } from './gameStateSystem';
-
 /**
  * Custom hook to manage keyboard input for the game
  * @param callbacks - Object containing callback functions for various inputs
+ * @param gameState - Optional game state to control input modes
  * @returns Current input state for movement
  */
 export function useInput(
   callbacks: InputCallbacks = {},
-  gameState: GameState
+  gameState?: GameState
 ): InputState {
   const inputState = useRef<InputState>({
     moveForward: false,
@@ -38,14 +37,19 @@ export function useInput(
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      // Game start
-      if (gameState.phase === 'menu' && e.code === 'Enter') {
+      // Game start (only if gameState is provided)
+      if (gameState && gameState.phase === 'menu' && e.code === 'Enter') {
         callbacks.onStartGame?.();
         return; // Prevent other inputs in menu
       }
 
+      // UI controls can always be active
+      if (e.code === 'KeyH') {
+        callbacks.onToggleUI?.();
+      }
+
       // Gameplay controls (only active if not in menu)
-      if (gameState.phase !== 'menu') {
+      if (!gameState || (gameState.phase !== 'menu')) {
         switch (e.code) {
           case 'KeyW':
             inputState.current.moveForward = true;
@@ -74,13 +78,10 @@ export function useInput(
           case 'KeyT':
             callbacks.onToggleAutoCorruption?.();
             break;
-          case 'KeyH':
-            callbacks.onToggleUI?.();
-            break;
         }
       }
     },
-    [callbacks, gameState.phase]
+    [callbacks, gameState]
   );
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
