@@ -18,12 +18,16 @@ interface CameraSystemProps {
   cinematicMode: boolean;
   inputState: InputState;
   onCameraNameChange?: (name: string) => void;
+  isStarting: boolean;
+  onStartAnimationFinish: () => void;
 }
 
 export function CameraSystem({
   cinematicMode,
   inputState,
-  onCameraNameChange
+  onCameraNameChange,
+  isStarting,
+  onStartAnimationFinish
 }: CameraSystemProps) {
   const cameraRef = useRef<THREE.PerspectiveCamera>(null);
 
@@ -61,7 +65,22 @@ export function CameraSystem({
   useFrame((_state, delta) => {
     if (!cameraRef.current) return;
 
-    if (cinematicMode) {
+    if (isStarting) {
+      const targetPos = new THREE.Vector3(0.28, 1.6, 3.2);
+      const targetLookAt = new THREE.Vector3(0.28, 0.62, 2.2);
+
+      cameraRef.current.position.lerp(targetPos, delta * 2);
+      currentCameraLookAt.current.lerp(targetLookAt, delta * 2);
+      cameraRef.current.lookAt(currentCameraLookAt.current);
+
+      if (cameraRef.current.position.distanceTo(targetPos) < 0.01) {
+        // Once close enough, snap to final position and stop starting animation
+        cameraRef.current.position.copy(targetPos);
+        currentCameraLookAt.current.copy(targetLookAt);
+        cameraRef.current.lookAt(currentCameraLookAt.current);
+        onStartAnimationFinish();
+      }
+    } else if (cinematicMode) {
       // Cinematic mode - smooth transitions between angles
       cameraTransitionTime.current += delta;
 

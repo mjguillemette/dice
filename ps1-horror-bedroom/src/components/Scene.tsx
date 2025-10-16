@@ -115,13 +115,18 @@ export function Scene({
 }: SceneProps) {
   const { scene, camera, gl } = useThree();
   const [cinematicMode, setCinematicMode] = useState(true);
+  const [isStarting, setIsStarting] = useState(false);
 
   useEffect(() => {
-    if (gameState.phase === "idle") {
-      setCinematicMode(false);
-      requestPointerLock();
+    if (gameState.phase === 'idle') {
+      setIsStarting(true);
     }
   }, [gameState.phase]);
+
+  const handleStartAnimationFinish = () => {
+    setIsStarting(false);
+  };
+
   const cameraRef = useRef(camera);
   const diceManagerRef = useRef<DiceManagerHandle>(null);
   const [hasItemsOnTowerCard, setHasItemsOnTowerCard] = useState(false);
@@ -540,6 +545,8 @@ export function Scene({
         cinematicMode={cinematicMode}
         inputState={inputState}
         onCameraNameChange={onCameraNameChange}
+        isStarting={isStarting}
+        onStartAnimationFinish={handleStartAnimationFinish}
       />
 
       <LightingRig
@@ -573,11 +580,7 @@ export function Scene({
         scale={1.4}
         rotation={[0, Math.PI / -2, 0]}
       />
-      <primitive
-        object={tray.scene}
-        position={RECEPTACLE_POSITION}
-        scale={1}
-      />
+      <primitive object={tray.scene} position={RECEPTACLE_POSITION} scale={1} />
       <Suspense fallback={null}>
         {/* Physics world for dice */}
         <Physics gravity={[0, -10, 0]}>

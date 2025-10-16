@@ -156,14 +156,18 @@ function App() {
         </div>
       )}
       {gameState.phase !== "menu" && !cinematicMode && <Crosshair />}
-      <ScoreDisplay
-        currentScore={diceScore}
-        rollHistory={rollHistory}
-        currentAttempt={gameState.currentAttempts}
-        maxAttempts={2}
-        isSettled={diceSettled}
-      />
-      <Wallet balances={balances} />
+      {gameState.phase !== "menu" && (
+        <>
+          <ScoreDisplay
+            currentScore={diceScore}
+            rollHistory={rollHistory}
+            currentAttempt={gameState.currentAttempts}
+            maxAttempts={2}
+            isSettled={diceSettled}
+          />
+          <Wallet balances={balances} />
+        </>
+      )}
 
       {/* The Canvas is ONLY for 3D components */}
       <Canvas
