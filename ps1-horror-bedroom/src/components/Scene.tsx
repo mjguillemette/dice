@@ -723,7 +723,7 @@ export function Scene({
             <ItemChoice
               key={`reward-${index}`}
               item={item}
-              position={[-2.6 + index * 0.3, 0.85, 4.2]}
+              position={[-2.8 + index * 0.3, 1.1, 4.2]}
               onPurchase={() => onItemSelected(item)}
               spendCurrency={() => true}
             />
