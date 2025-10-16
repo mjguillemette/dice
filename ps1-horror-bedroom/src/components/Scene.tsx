@@ -723,14 +723,14 @@ export function Scene({
             <ItemChoice
               key={`reward-${index}`}
               item={item}
-              position={[-0.3 + index * 0.3, 0.85, 2.2]}
+              position={[-2.6 + index * 0.3, 0.85, 4.2]}
               onPurchase={() => onItemSelected(item)}
               spendCurrency={() => true}
             />
           ))}
         </Physics>
       </Suspense>
-
+ {/* position={[-2.2, 0.0, 4.2]} */}
       {/* House structure (floors, walls, stairs) */}
       <House hellFactor={hellFactor} />
 
