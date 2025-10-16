@@ -577,8 +577,7 @@ export function Scene({
       <primitive
         object={tray.scene}
         position={RECEPTACLE_POSITION}
-        scale={1.4}
-        rotation={RECEPTACLE_ROTATION}
+        scale={1}
       />
       <Suspense fallback={null}>
         {/* Physics world for dice */}
