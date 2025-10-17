@@ -1,6 +1,6 @@
-# PS1 Horror Bedroom - React Three Fiber
+# PS1 Horror Bedroom - Dice Game
 
-A professional React Three Fiber migration of a PS1-style horror bedroom scene with progressive corruption mechanics.
+A PS1-style horror dice game with physics-based dice rolling, modifiers, scoring, and atmospheric corruption mechanics.
 
 ## Features
 

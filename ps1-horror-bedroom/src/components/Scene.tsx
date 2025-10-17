@@ -34,11 +34,11 @@ import { useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { type ItemDefinition } from "../systems/itemSystem";
 import { type GameState } from "../systems/gameStateSystem";
-import DiceInfo from "./ui/DiceInfo";
+// import DiceInfo from "./ui/DiceInfo";
 
 interface SceneProps {
   onCameraNameChange: (name: string) => void;
-  onCameraModeChange: (cinematicMode: boolean) => void;
+  // onCameraModeChange: (cinematicMode: boolean) => void;
   onHellFactorChange: (hellFactor: number) => void;
   onAutoCorruptionChange: (autoCorruption: boolean) => void;
   diceCount: number;
@@ -88,7 +88,7 @@ interface SceneProps {
 }
 export function Scene({
   onCameraNameChange,
-  onCameraModeChange,
+  // onCameraModeChange,
   onHellFactorChange,
   onAutoCorruptionChange,
   diceCount,

@@ -1,5 +1,16 @@
-import { createContext, useContext, useReducer, useCallback, ReactNode } from "react";
-import { gameStateReducer, initialGameState, type GameState, type GameAction } from "../systems/gameStateSystem";
+import {
+  createContext,
+  useContext,
+  useReducer,
+  useCallback,
+  type ReactNode
+} from "react";
+import {
+  gameStateReducer,
+  initialGameState,
+  type GameState,
+  type GameAction
+} from "../systems/gameStateSystem";
 
 interface GameStateContextValue {
   gameState: GameState;
@@ -14,7 +25,9 @@ interface GameStateContextValue {
   returnToMenu: () => void;
 }
 
-const GameStateContext = createContext<GameStateContextValue | undefined>(undefined);
+const GameStateContext = createContext<GameStateContextValue | undefined>(
+  undefined
+);
 
 interface GameStateProviderProps {
   children: ReactNode;

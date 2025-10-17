@@ -3,8 +3,13 @@
  * Manages the comprehensive state machine for time passage and game progression
  */
 
-import type { ScoringState, ScoreCategoryData, DiceRoll } from "./scoringSystem";
-import { calculateScores, updateBestScores, initialScoringState, initializeEmptyScores } from "./scoringSystem";
+import type { ScoringState, DiceRoll } from "./scoringSystem";
+import {
+  calculateScores,
+  updateBestScores,
+  initialScoringState,
+  initializeEmptyScores
+} from "./scoringSystem";
 
 // ===== TYPES & INTERFACES =====
 
@@ -154,7 +159,10 @@ export function gameStateReducer(
         console.log("🎯 Calculated scores for roll:", rollScores);
 
         // Update current scores (best scores for this time period)
-        const updatedCurrentScores = updateBestScores(state.scoring.currentScores, rollScores);
+        const updatedCurrentScores = updateBestScores(
+          state.scoring.currentScores,
+          rollScores
+        );
 
         // Also update historical scores for this time period
         const historicalScores = { ...state.scoring.historicalScores };
@@ -208,7 +216,10 @@ export function gameStateReducer(
           currentScores: initializeEmptyScores(),
           currentTimeOfDay: newTimeState.timeOfDay as TimeOfDay
         };
-        console.log("📊 Scores reset for new time period:", newTimeState.timeOfDay);
+        console.log(
+          "📊 Scores reset for new time period:",
+          newTimeState.timeOfDay
+        );
       }
 
       return {
@@ -260,7 +271,10 @@ export function gameStateReducer(
             currentScores: initializeEmptyScores(),
             currentTimeOfDay: newTimeState.timeOfDay as TimeOfDay
           };
-          console.log("📊 Scores reset for new time period:", newTimeState.timeOfDay);
+          console.log(
+            "📊 Scores reset for new time period:",
+            newTimeState.timeOfDay
+          );
         }
 
         return {

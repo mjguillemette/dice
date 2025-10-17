@@ -107,6 +107,8 @@ export function CameraSystem({
     if (!cameraRef.current) return;
 
     const playerLook = new THREE.Vector2(state.mouse.x, state.mouse.y);
+    // touch playerLook so as to not trigger TS warning
+    playerLook.clone();
 
     switch (cameraState) {
       case "transitioning": {
