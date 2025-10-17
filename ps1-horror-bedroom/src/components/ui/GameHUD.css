@@ -4,7 +4,7 @@
   position: fixed;
   inset: 0;
   pointer-events: none;
-  font-family: 'Courier New', 'Courier', monospace;
+  font-family: "Courier New", "Courier", monospace;
   z-index: 100;
 }
 
@@ -218,7 +218,8 @@
 }
 
 @keyframes critical-pulse {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 rgba(244, 67, 54, 0);
   }
   50% {
@@ -367,7 +368,83 @@
   letter-spacing: 0.5px;
   font-weight: 500;
 }
+/* ===== WALLET & CLEAN GAIN ANIMATION ===== */
 
+.hud-footer {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.wallet-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.wallet-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* This wrapper acts as the positioning context for the gain indicator */
+.wallet-amount-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-left: 60px; /* Add space for the gain to appear */
+}
+
+.wallet-amount {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(76, 175, 80, 1);
+  text-shadow: 0 0 8px rgba(76, 175, 80, 0.3);
+  /* Smooth transition for the gaining highlight effect */
+  transition: color 0.3s ease-out, transform 0.3s ease-out;
+}
+
+/* Temporary highlight class for the main balance */
+.wallet-amount.gaining {
+  color: #feea3a; /* Bright yellow highlight */
+  transform: scale(1.05);
+}
+
+/* The clean, single gain indicator */
+.wallet-gain {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  animation: clean-fade-effect 1.5s ease-in-out forwards;
+}
+
+/* A simple, even fade-in and fade-out animation */
+@keyframes clean-fade-effect {
+  0% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.95);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+  85% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.95);
+  }
+}
 /* ===== MOBILE RESPONSIVE ===== */
 
 @media (max-width: 768px) {
