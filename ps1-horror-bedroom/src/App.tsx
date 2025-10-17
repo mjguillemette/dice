@@ -274,6 +274,7 @@ function AppContent() {
         onSpotlightIntensityChange={setSpotlightIntensity}
         onSpotlightAngleChange={setSpotlightAngle}
         onTestSuccessfulRoll={handleSuccessfulRoll}
+        onCinematicModeToggle={() => setCinematicMode(!cinematicMode)}
       />
     </div>
   );
