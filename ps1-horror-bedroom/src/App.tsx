@@ -164,20 +164,37 @@ function AppContent() {
     >
       {/* 2D UI Components are rendered here, outside of the Canvas */}
       {gameState.phase === "menu" && (
-        <div className="menu-overlay">
-          <h1>Enter: Start Game</h1>
-          <input
-            type="text"
-            style={{ position: "absolute", top: "-1000px" }}
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                onStartGame();
-              }
-            }}
-          />
+        <div
+          className="menu-overlay"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(0, 0, 0, 0.8)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column",
+            color: "white",
+            textAlign: "center",
+            fontFamily: "monospace",
+            zIndex: 10,
+            cursor: "pointer",
+            transition: "opacity 0.5s ease",
+            opacity: 1
+          }}
+          onClick={onStartGame}
+          onTouchStart={onStartGame}
+        >
+          <h1 style={{ fontSize: "2rem", marginBottom: "1rem" }}>
+            Tap to Start
+          </h1>
+          <p style={{ opacity: 0.6 }}>Press Enter on desktop</p>
         </div>
       )}
+
       {gameState.phase !== "menu" && !cinematicMode && <Crosshair />}
       {gameState.phase !== "menu" && (
         <GameHUD
