@@ -83,7 +83,7 @@ export function DevPanel({
   onTestSuccessfulRoll,
   onCinematicModeToggle
 }: DevPanelProps) {
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(false);
 
   useInput({
     onToggleUI: () => setVisible((prev) => !prev)
