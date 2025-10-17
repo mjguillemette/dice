@@ -16,11 +16,6 @@ interface GameHUDProps {
   hoveredDice: DiceData | null;
 }
 
-interface GainPopup {
-  id: number;
-  amount: number;
-}
-
 export function GameHUD({
   scores,
   timeOfDay,
