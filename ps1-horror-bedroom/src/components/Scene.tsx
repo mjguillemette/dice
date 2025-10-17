@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, Suspense } from "react";
-import { useThree } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Physics, RigidBody, CuboidCollider } from "@react-three/rapier";
 import * as THREE from "three";
 import { FOG_CONFIG, TIME_OF_DAY_CONFIG } from "../constants/gameConfig";
@@ -11,12 +11,9 @@ import {
 } from "../constants/receptacleConfig";
 import { type TimeOfDay } from "../systems/gameStateSystem";
 import { getTimeProgressRatio } from "../systems/gameStateSystem";
-import {
-  useInput,
-  useMouseLook,
-  requestPointerLock
-} from "../systems/inputSystem";
+import { useInput, useMouseLook } from "../systems/inputSystem";
 import { useCorruption } from "../systems/corruptionSystem";
+import { useGameState } from "../contexts/GameStateContext";
 import CameraSystem from "./camera/CameraSystem";
 import LightingRig from "./lighting/LightingRig";
 import Room from "./models/Room";
@@ -37,6 +34,7 @@ import { useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { type ItemDefinition } from "../systems/itemSystem";
 import { type GameState } from "../systems/gameStateSystem";
+import DiceInfo from "./ui/DiceInfo";
 
 interface SceneProps {
   onCameraNameChange: (name: string) => void;
@@ -61,7 +59,7 @@ interface SceneProps {
   onSuccessfulRoll: () => void;
   onFailedRoll: () => void;
   onAttempt: () => void;
-  onDiceSettled: () => void;
+  onDiceSettled: (diceValues?: number[]) => void;
   daysMarked: number;
   currentAttempts: number; // Needed to know if round is complete after failed roll
   timeOfDay: TimeOfDay;
@@ -77,6 +75,16 @@ interface SceneProps {
   spendCurrency: (type: string, amount: number) => boolean;
   gameState: GameState;
   onStartGame: () => void;
+  onDiceHover: (
+    diceData: {
+      id: number;
+      type: string;
+      faceValue: number;
+      score: number;
+      modifiers: string[];
+      position: { x: number; y: number };
+    } | null
+  ) => void;
 }
 export function Scene({
   onCameraNameChange,
@@ -101,6 +109,7 @@ export function Scene({
   onSuccessfulRoll,
   onFailedRoll,
   onAttempt,
+  onDiceSettled,
   daysMarked,
   currentAttempts,
   timeOfDay,
@@ -111,19 +120,32 @@ export function Scene({
   storeChoices,
   spendCurrency,
   gameState,
-  onStartGame
+  onStartGame,
+  onDiceHover
 }: SceneProps) {
   const { scene, camera, gl } = useThree();
-  const [cinematicMode, setCinematicMode] = useState(true);
+  const { returnToMenu } = useGameState();
   const [isStarting, setIsStarting] = useState(false);
+  const hasStartedGameRef = useRef(false);
 
   useEffect(() => {
-    if (gameState.phase === 'idle') {
+    // Only trigger the starting animation when transitioning from menu to idle (first time)
+    if (gameState.phase === "idle" && !hasStartedGameRef.current) {
+      console.log(
+        "🎮 First time entering idle - starting transition animation"
+      );
+      hasStartedGameRef.current = true;
       setIsStarting(true);
     }
   }, [gameState.phase]);
 
   const handleStartAnimationFinish = () => {
+    console.log("🎬 handleStartAnimationFinish - Current yaw/pitch:", {
+      yaw: yawRef.current,
+      pitch: pitchRef.current,
+      yawDeg: (yawRef.current * 180) / Math.PI,
+      pitchDeg: (pitchRef.current * 180) / Math.PI
+    });
     setIsStarting(false);
   };
 
@@ -132,10 +154,14 @@ export function Scene({
   const [hasItemsOnTowerCard, setHasItemsOnTowerCard] = useState(false);
   const [hasItemsOnSunCard, setHasItemsOnSunCard] = useState(false);
 
-  console.log("Store choices:", storeChoices);
-  // Store yaw (left/right) and pitch (up/down) separately for FPS camera
+  // Store yaw (left/right) and pitch (up/down) for camera look
   const yawRef = useRef(0);
   const pitchRef = useRef(0);
+
+  // Track locally to pass to DiceManager for highlighting
+  const [hoveredDiceId, setHoveredDiceId] = useState<number | null>(null);
+
+  console.log("Store choices:", storeChoices);
 
   // // Throw charge mechanics
   // const [throwCharging, setThrowCharging] = useState(false);
@@ -154,12 +180,12 @@ export function Scene({
   // Update parent component with hellFactor changes
   useEffect(() => {
     onHellFactorChange(hellFactor);
-  }, [hellFactor, onHellFactorChange]);
+  }, [hellFactor]); // Removed onHellFactorChange from deps to prevent infinite loop
 
   // Update parent component with autoCorruption changes
   useEffect(() => {
     onAutoCorruptionChange(autoCorruption);
-  }, [autoCorruption, onAutoCorruptionChange]);
+  }, [autoCorruption]); // Removed onAutoCorruptionChange from deps to prevent infinite loop
 
   // Callbacks for card items change that update both parent and local state
   const handleTowerCardItemsChange = useCallback(
@@ -186,37 +212,17 @@ export function Scene({
     [handleSunCardItemsChange, handleTowerCardItemsChange]
   );
 
-  const toggleCamera = useCallback(() => {
-    const newMode = !cinematicMode;
-    setCinematicMode(newMode);
-    onCameraModeChange(newMode);
-
-    if (!newMode) {
-      // Entering free camera mode - reset to FPS starting position
-      if (cameraRef.current) {
-        // Set camera to player height in center of room, facing forward
-        cameraRef.current.position.set(0, 1.6, 0);
-
-        // Reset rotation to face forward (negative Z)
-        yawRef.current = 0;
-        pitchRef.current = 0;
-        cameraRef.current.rotation.set(0, 0, 0, "YXZ"); // YXZ order prevents gimbal lock
-      }
-
-      // Request pointer lock
-      requestPointerLock();
-    }
-  }, [cinematicMode, onCameraModeChange]);
-
   const handleMouseMove = useCallback(
     (movementX: number, movementY: number) => {
-      if (cameraRef.current && !cinematicMode) {
-        // Update yaw (left/right) and pitch (up/down)
-        yawRef.current -= movementX * 0.002;
-        pitchRef.current -= movementY * 0.002;
+      // Only allow mouse look when not in menu AND not during the initial transition
+      if (cameraRef.current && gameState.phase !== "menu" && !isStarting) {
+        // Update yaw (left/right) and pitch (up/down) with good sensitivity
+        const mouseSensitivity = 0.003;
+        yawRef.current -= movementX * mouseSensitivity;
+        pitchRef.current -= movementY * mouseSensitivity;
 
         // Clamp pitch to prevent looking too far up or down
-        const maxPitch = Math.PI / 2 - 0.1; // Slightly less than 90 degrees
+        const maxPitch = Math.PI / 2.5;
         pitchRef.current = Math.max(
           -maxPitch,
           Math.min(maxPitch, pitchRef.current)
@@ -229,13 +235,13 @@ export function Scene({
         cameraRef.current.rotation.z = 0; // No roll
       }
     },
-    [cinematicMode]
+    [gameState.phase, isStarting]
   );
 
   const inputState = useInput(
     {
       onStartGame,
-      onToggleCamera: toggleCamera,
+      onExitToMenu: returnToMenu,
       onIncreaseCorruption: increaseCorruption,
       onDecreaseCorruption: decreaseCorruption,
       onToggleAutoCorruption: toggleAutoCorruption
@@ -243,7 +249,8 @@ export function Scene({
     gameState
   );
 
-  useMouseLook(handleMouseMove, !cinematicMode);
+  // Disable mouse look during menu OR during the initial starting transition
+  useMouseLook(handleMouseMove, gameState.phase !== "menu" && !isStarting);
 
   // Update fog and background based on time of day AND corruption
   useEffect(() => {
@@ -315,7 +322,9 @@ export function Scene({
     (event: MouseEvent) => {
       console.log(
         "Click detected! Pointer locked:",
-        !!document.pointerLockElement
+        !!document.pointerLockElement,
+        "Game phase:",
+        gameState.phase
       );
 
       if (!diceManagerRef.current) return;
@@ -363,46 +372,41 @@ export function Scene({
         return;
       }
 
-      // Check if we hit a valid throwable surface (floor, furniture, receptacle)
-      const validSurfaceNames = [
-        "Ground",
-        "Floor",
-        "Furniture",
-        "Receptacle",
-        "Table",
-        "Bed",
-        "Bureau",
-        "TVStand"
-      ];
-      const hitValidSurface = intersects.some((intersect) => {
-        const obj = intersect.object;
-        let current: THREE.Object3D | null = obj;
-        while (current) {
-          if (validSurfaceNames.some((name) => current!.name.includes(name))) {
-            return true;
-          }
-          current = current.parent;
+      // Priority 1: If dice have settled, calculate scores AND evaluate round in ONE click
+      if (diceManagerRef.current.hasSettledDice() && gameState.phase === "throwing") {
+        // TODO: Replace with actual dice values from physics simulation
+        // For now, generate random dice values to test scoring
+        const mockDiceValues: number[] = [];
+        for (let i = 0; i < diceCount; i++) {
+          mockDiceValues.push(Math.floor(Math.random() * 6) + 1); // D6: 1-6
         }
-        // Also allow if we hit the floor plane (y near 0)
-        return intersect.point.y < 0.1;
-      });
+        for (let i = 0; i < d4Count; i++) {
+          mockDiceValues.push(Math.floor(Math.random() * 4) + 1); // D4: 1-4
+        }
+        for (let i = 0; i < d3Count; i++) {
+          mockDiceValues.push(Math.floor(Math.random() * 3) + 1); // D3: 1-3
+        }
 
-      if (!hitValidSurface && intersects.length > 0) {
-        console.log("🚫 Not clicking on valid throwing surface");
-        return;
-      }
+        console.log("🎲 Mock dice values on settle:", mockDiceValues);
 
-      // Priority 1: If there are settled dice, pick them up first AND evaluate round
-      if (diceManagerRef.current.hasSettledDice()) {
+        // Manually check for pairs in console
+        const valueCounts = new Map<number, number>();
+        mockDiceValues.forEach((val) => {
+          valueCounts.set(val, (valueCounts.get(val) || 0) + 1);
+        });
+        console.log("🎲 Value counts:", Array.from(valueCounts.entries()));
+
+        // Calculate scores (this transitions to "settled" phase internally)
+        onDiceSettled(mockDiceValues);
+
+        // Immediately evaluate the round
         const pickedUp = diceManagerRef.current.pickUpOutsideDice();
         console.log("Picked up", pickedUp, "dice outside receptacle");
 
-        // Now evaluate the round based on what happened
         if (pickedUp === 0) {
           // All dice were in receptacle - successful round!
           console.log("✅ All dice in receptacle - successful round!");
           onSuccessfulRoll();
-          // Start a new round - this will pick up all dice and reset score
           diceManagerRef.current.startNewRound();
         } else {
           // Some dice were outside receptacle - failed attempt
@@ -413,9 +417,6 @@ export function Scene({
           );
           onFailedRoll();
 
-          // Check if this was the last attempt (round is now complete)
-          // After calling onFailedRoll(), currentAttempts will have been incremented
-          // So we check if currentAttempts >= 2 (MAX_ATTEMPTS_PER_ROUND)
           if (currentAttempts >= 2) {
             console.log(
               "🔄 Round complete after failed attempts - starting new round"
@@ -424,88 +425,125 @@ export function Scene({
           }
         }
 
-        return; // ALWAYS return after picking up - prevents both actions in one click
+        return; // Evaluation complete
       }
 
-      // Priority 2: Check if we can throw (not debounced)
+      // Priority 3: Check if we can throw (not debounced)
       if (!diceManagerRef.current.canThrow()) {
         console.log("Cannot throw - debounce active");
         return;
       }
 
-      // Priority 3: Throw dice (either from re-throw queue or fresh)
+      // Priority 4: Throw dice (either from re-throw queue or fresh)
       // Count this as an attempt BEFORE throwing
       console.log("🎲 Starting new attempt...");
       onAttempt();
 
       // Get the camera's current position and direction
       const cameraPosition = camera.position.clone();
-      const direction = new THREE.Vector3();
-      camera.getWorldDirection(direction);
 
-      // For pointer locked (first person) mode, raycast from camera center
-      if (document.pointerLockElement) {
-        console.log("FPS mode - throwing from camera look direction");
-        // Raycast from center of screen (where camera is looking)
-        const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+      // ALWAYS throw in camera direction (center of screen), not mouse position
+      console.log("Throwing from camera look direction");
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
 
-        const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-        const intersectPoint = new THREE.Vector3();
-        const didIntersect = raycaster.ray.intersectPlane(
-          floorPlane,
+      const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const intersectPoint = new THREE.Vector3();
+      const didIntersect = raycaster.ray.intersectPlane(
+        floorPlane,
+        intersectPoint
+      );
+
+      console.log("Floor intersect:", didIntersect, intersectPoint);
+
+      if (didIntersect && diceManagerRef.current) {
+        console.log(
+          "Throwing dice from camera at:",
+          cameraPosition,
+          "to:",
           intersectPoint
         );
-
-        console.log("Floor intersect:", didIntersect, intersectPoint);
-
-        if (didIntersect && diceManagerRef.current) {
-          console.log(
-            "Throwing dice from camera at:",
-            cameraPosition,
-            "to:",
-            intersectPoint
-          );
-          diceManagerRef.current.throwDice(intersectPoint, cameraPosition);
-        }
-      } else {
-        console.log("Cinematic mode - throwing from mouse position");
-        // For cinematic mode, raycast from mouse position
-        const rect = gl.domElement.getBoundingClientRect();
-        const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-        const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
-
-        const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-        const intersectPoint = new THREE.Vector3();
-        const didIntersect = raycaster.ray.intersectPlane(
-          floorPlane,
-          intersectPoint
-        );
-
-        if (didIntersect && diceManagerRef.current) {
-          console.log(
-            "Throwing dice from camera at:",
-            cameraPosition,
-            "to:",
-            intersectPoint
-          );
-          diceManagerRef.current.throwDice(intersectPoint, cameraPosition);
-        }
+        diceManagerRef.current.throwDice(intersectPoint, cameraPosition);
       }
     },
     [
       camera,
       gl,
+      scene,
+      gameState.phase,
       onAttempt,
       onSuccessfulRoll,
       onFailedRoll,
+      onDiceSettled,
       currentAttempts,
-      itemChoices.length
+      itemChoices.length,
+      diceCount,
+      coinCount,
+      d3Count,
+      d4Count,
+      thumbTackCount
     ]
   );
+
+  // Handle dice hovering using raycasting from center of screen (like store items)
+  useFrame(() => {
+    // Only check for dice hover when settled
+    if (diceManagerRef.current?.hasSettledDice()) {
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+      const intersects = raycaster.intersectObjects(scene.children, true);
+
+      // Look for dice objects in the intersections
+      let foundDice = false;
+      for (const intersect of intersects) {
+        const obj = intersect.object;
+
+        // Check if this object or any parent has a "dice" userData
+        let current: THREE.Object3D | null = obj;
+        while (current) {
+          if (current.userData?.isDice) {
+            // Found a dice! Extract info
+            // For screen position, project the 3D position to screen space
+            const vector = new THREE.Vector3();
+            current.getWorldPosition(vector);
+            vector.project(camera);
+
+            const canvas = gl.domElement;
+            const widthHalf = canvas.width / 2;
+            const heightHalf = canvas.height / 2;
+
+            const screenX = vector.x * widthHalf + widthHalf;
+            const screenY = -(vector.y * heightHalf) + heightHalf;
+
+            const diceData = {
+              id: current.userData.diceId || 0,
+              type: current.userData.diceType || "d6",
+              faceValue: current.userData.faceValue || 0,
+              score: current.userData.score || 0,
+              modifiers: current.userData.modifiers || [],
+              position: { x: screenX, y: screenY }
+            };
+
+            // Update both local ID for highlighting and parent for UI
+            setHoveredDiceId(diceData.id);
+            onDiceHover(diceData);
+            foundDice = true;
+            break;
+          }
+          current = current.parent;
+        }
+
+        if (foundDice) break;
+      }
+
+      if (!foundDice) {
+        setHoveredDiceId(null);
+        onDiceHover(null);
+      }
+    } else {
+      setHoveredDiceId(null);
+      onDiceHover(null);
+    }
+  });
 
   useEffect(() => {
     const canvas = gl.domElement;
@@ -542,12 +580,13 @@ export function Scene({
   return (
     <>
       <CameraSystem
-        cinematicMode={cinematicMode}
         inputState={inputState}
         onCameraNameChange={onCameraNameChange}
         isStarting={isStarting}
         onStartAnimationFinish={handleStartAnimationFinish}
         gamePhase={gameState.phase}
+        yawRef={yawRef}
+        pitchRef={pitchRef}
       />
 
       <LightingRig
@@ -555,6 +594,12 @@ export function Scene({
         timeOfDay={timeOfDay}
         timeProgress={getTimeProgressRatio(successfulRolls)}
       />
+
+      {/* DEBUG: Ceiling marker directly above player start position */}
+      <mesh position={[0.28, 2.8, 1.2]}>
+        <boxGeometry args={[0.5, 0.1, 0.5]} />
+        <meshBasicMaterial color="hotpink" />
+      </mesh>
 
       {/* Test model - thumb tack on receptacle */}
       {/* <primitive
@@ -597,6 +642,7 @@ export function Scene({
             cardEnabled={towerCardEnabled || sunCardEnabled}
             onCardItemsChange={handleCardItemsChange}
             onCoinSettled={onDieSettledForCurrency}
+            hoveredDiceId={hoveredDiceId}
           />
 
           {/* Ground plane - using explicit CuboidCollider */}
@@ -748,7 +794,7 @@ export function Scene({
             <ItemChoice
               key={`reward-${index}`}
               item={item}
-              position={[-2.3 + index * 0.3, 1.1, 4.25]}
+              position={[-2.65 + index * 0.45, 1.08, 4.15]}
               onPurchase={() => onItemSelected(item)}
               spendCurrency={() => true}
             />

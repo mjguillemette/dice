@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from "three";
 
 // Corruption system constants
 export const CORRUPTION_SPEED = 0.0003;
@@ -16,7 +16,7 @@ export const CORRUPTION_STAGES = {
   GRIME: { start: 0.2, end: 0.5 },
   RUST: { start: 0.4, end: 0.7 },
   BLOOD: { start: 0.6, end: 0.9 },
-  PULSE: { start: 0.8, end: 1.0 },
+  PULSE: { start: 0.8, end: 1.0 }
 };
 
 // Swappable objects fade thresholds
@@ -38,7 +38,7 @@ export const CINEMATIC_ANGLES: CinematicAngle[] = [
   // Wide establishing shot from corner
   {
     pos: new THREE.Vector3(4, 2.5, 4),
-    lookAt: new THREE.Vector3(-2, 1, -2),
+    lookAt: new THREE.Vector3(0.28, 1.8, 1.5),
     name: "Bedroom Overview"
   },
 
@@ -52,7 +52,7 @@ export const CINEMATIC_ANGLES: CinematicAngle[] = [
   // Close on ceiling light transformation
   {
     pos: new THREE.Vector3(0, 3.8, 0.5),
-    lookAt: new THREE.Vector3(0, 4.7, 0),
+    lookAt: new THREE.Vector3(0.28, 1.8, 1.5),
     name: "Ceiling Light"
   },
 
@@ -101,67 +101,92 @@ export const CINEMATIC_ANGLES: CinematicAngle[] = [
   // Dramatic low angle looking up at ceiling
   {
     pos: new THREE.Vector3(0, 0.5, 0),
-    lookAt: new THREE.Vector3(0, 4.5, -2),
+    lookAt: new THREE.Vector3(0.28, 1.8, 1.5),
     name: "Ascension"
-  },
+  }
 ];
 
 // Light configuration
 export const LIGHT_CONFIG = {
   ambient: {
     color: 0xffffff,
-    intensity: 1.5, // Increased from 0.2 to 1.5
+    intensity: 1.5 // Increased from 0.2 to 1.5
   },
   ceiling: {
     color: 0xffffbb,
     intensity: 3.0, // Increased from 1.2 to 3.0
     distance: 25,
     position: new THREE.Vector3(0, 4.7, 0),
-    hellColor: 0xff0000,
+    hellColor: 0xff0000
   },
   window: {
     color: 0x88bbff,
     intensity: 2.5, // Increased from 0.8 to 2.5
     position: new THREE.Vector3(5, 5, -5),
-    hellColor: 0x330000,
+    hellColor: 0x330000
   },
   deskLamp: {
     color: 0xffeecc,
     intensity: 2.0, // Increased from 0.8 to 2.0
     distance: 8,
     position: new THREE.Vector3(3.6, 2.0, -3),
-    hellColor: 0xff3300,
+    hellColor: 0xff3300
   },
   tv: {
     color: 0x3366ff,
     intensity: 1.5, // Increased from 0.6 to 1.5
     distance: 7,
     position: new THREE.Vector3(0, 1.4, -4),
-    hellColor: 0xcc0000,
+    hellColor: 0xcc0000
   },
   corner1: {
     color: 0xffffff,
     intensity: 1.0, // Increased from 0.3 to 1.0
     distance: 12,
     position: new THREE.Vector3(-4, 1, -4),
-    hellColor: 0x660000,
+    hellColor: 0x660000
   },
   corner2: {
     color: 0xffffff,
     intensity: 1.0, // Increased from 0.3 to 1.0
     distance: 12,
     position: new THREE.Vector3(4, 1, 3),
-    hellColor: 0x660000,
-  },
+    hellColor: 0x660000
+  }
 };
 
 // Hell lights (appear during corruption)
 export const HELL_LIGHTS = [
-  { color: 0xff0000, intensity: 0, distance: 10, position: new THREE.Vector3(-3, 2, -3) },
-  { color: 0xff0000, intensity: 0, distance: 10, position: new THREE.Vector3(3, 2, 2) },
-  { color: 0xaa0000, intensity: 0, distance: 8, position: new THREE.Vector3(0, 0.5, -2) },
-  { color: 0xff3300, intensity: 0, distance: 12, position: new THREE.Vector3(-2, 3, 0) },
-  { color: 0x880000, intensity: 0, distance: 7, position: new THREE.Vector3(2, 1, -4) },
+  {
+    color: 0xff0000,
+    intensity: 0,
+    distance: 10,
+    position: new THREE.Vector3(-3, 2, -3)
+  },
+  {
+    color: 0xff0000,
+    intensity: 0,
+    distance: 10,
+    position: new THREE.Vector3(3, 2, 2)
+  },
+  {
+    color: 0xaa0000,
+    intensity: 0,
+    distance: 8,
+    position: new THREE.Vector3(0, 0.5, -2)
+  },
+  {
+    color: 0xff3300,
+    intensity: 0,
+    distance: 12,
+    position: new THREE.Vector3(-2, 3, 0)
+  },
+  {
+    color: 0x880000,
+    intensity: 0,
+    distance: 7,
+    position: new THREE.Vector3(2, 1, -4)
+  }
 ];
 
 // Fog configuration
@@ -169,41 +194,41 @@ export const FOG_CONFIG = {
   normalColor: 0x87ceeb,
   hellColor: 0x0a0000,
   near: 1,
-  far: 20,
+  far: 20
 };
 
 // Time of day lighting configurations
 export const TIME_OF_DAY_CONFIG = {
   morning: {
     // Warm sunrise colors - DRAMATIC warm orange/pink glow
-    fogColor: 0xff9966,        // Deep orange sunrise
-    ambientColor: 0xffccaa,    // Warm peachy ambient
+    fogColor: 0xff9966, // Deep orange sunrise
+    ambientColor: 0xffccaa, // Warm peachy ambient
     ambientIntensity: 2.2,
-    windowColor: 0xff7733,     // Strong orange sunlight
-    windowIntensity: 5.0,      // Very bright morning sun
-    ceilingIntensity: 1.5,     // Less needed in morning
-    ceilingColor: 0xffffdd,    // Warm yellow
+    windowColor: 0xff7733, // Strong orange sunlight
+    windowIntensity: 5.0, // Very bright morning sun
+    ceilingIntensity: 1.5, // Less needed in morning
+    ceilingColor: 0xffffdd // Warm yellow
   },
   midday: {
     // Bright daylight colors - INTENSE white/blue daylight
-    fogColor: 0xaaddff,        // Bright sky blue
-    ambientColor: 0xffffff,    // Pure white
-    ambientIntensity: 3.0,     // Very bright
-    windowColor: 0xffffee,     // Bright sun yellow-white
-    windowIntensity: 6.0,      // Maximum daylight
-    ceilingIntensity: 1.0,     // Minimal - window dominates
-    ceilingColor: 0xffffbb,    // Soft yellow
+    fogColor: 0xaaddff, // Bright sky blue
+    ambientColor: 0xffffff, // Pure white
+    ambientIntensity: 3.0, // Very bright
+    windowColor: 0xffffee, // Bright sun yellow-white
+    windowIntensity: 6.0, // Maximum daylight
+    ceilingIntensity: 1.0, // Minimal - window dominates
+    ceilingColor: 0xffffbb // Soft yellow
   },
   night: {
     // Dark evening/night colors - DEEP blue darkness
-    fogColor: 0x0a0a1a,        // Nearly black with blue tint
-    ambientColor: 0x2a2a4a,    // Very dim blue ambient
-    ambientIntensity: 0.4,     // Very dark
-    windowColor: 0x1a1a3a,     // Very dark blue moonlight
-    windowIntensity: 0.5,      // Barely any moonlight
-    ceilingIntensity: 4.0,     // Indoor lights are primary source
-    ceilingColor: 0xffcc88,    // Warm cozy indoor light
-  },
+    fogColor: 0x0a0a1a, // Nearly black with blue tint
+    ambientColor: 0x2a2a4a, // Very dim blue ambient
+    ambientIntensity: 0.4, // Very dark
+    windowColor: 0x1a1a3a, // Very dark blue moonlight
+    windowIntensity: 0.5, // Barely any moonlight
+    ceilingIntensity: 4.0, // Indoor lights are primary source
+    ceilingColor: 0xffcc88 // Warm cozy indoor light
+  }
 };
 
 // Camera bounds for free mode (large bounds - rely on collision detection)
@@ -211,5 +236,5 @@ export const CAMERA_BOUNDS = {
   minX: -20,
   maxX: 20,
   minZ: -20,
-  maxZ: 20,
+  maxZ: 20
 };

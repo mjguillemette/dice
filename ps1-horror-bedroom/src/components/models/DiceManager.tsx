@@ -53,6 +53,7 @@ interface DiceManagerProps {
     towerCardDiceIDs: number[]
   ) => void; // Callback with dice IDs on each card
   onCoinSettled?: (type: string, amount: number) => void;
+  hoveredDiceId?: number | null; // ID of the currently hovered dice
 }
 
 export interface DiceManagerHandle {
@@ -91,7 +92,8 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       shaderEnabled,
       cardEnabled,
       onCardItemsChange,
-      onCoinSettled
+      onCoinSettled,
+      hoveredDiceId = null
     },
     ref
   ) => {
@@ -133,6 +135,27 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
         default:
           return 6;
       }
+    };
+
+    const getTransformationNames = (transformations: DiceTransformation[]): string[] => {
+      return transformations.map(t => {
+        switch (t.type) {
+          case "sun_boost":
+            return "Sun";
+          case "tarot_boost":
+            return "Tower";
+          case "hourglass_curse":
+            return "Hourglass";
+          case "hell_corruption":
+            return "Corrupted";
+          case "blessed":
+            return "Blessed";
+          case "cursed":
+            return "Cursed";
+          default:
+            return t.type;
+        }
+      });
     };
 
     const createDieObject = (
@@ -655,20 +678,9 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
           const updated = prev.map((d) => {
             if (d.id !== id) return d;
 
-            let newTransformations = d.transformations;
-            if (onSunCard) {
-              newTransformations = applyTransformation(
-                d.transformations,
-                "sun_boost"
-              );
-            }
-            if (onTowerCard) {
-              newTransformations = applyTransformation(
-                d.transformations,
-                "tarot_boost"
-              );
-            }
-            dieTransformations = newTransformations;
+            // Transformations are applied via collision detection (applyCardTransformation)
+            // NOT here during settle to avoid double-dipping
+            dieTransformations = d.transformations;
 
             const newStatus: DiceStatus = inReceptacle
               ? "settledInReceptacle"
@@ -683,8 +695,8 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
               ],
               settled: true,
               inReceptacle,
-              status: newStatus,
-              transformations: newTransformations
+              status: newStatus
+              // transformations are NOT modified here - they're set by collision detection
             } as DiceInstance;
           });
 
@@ -778,6 +790,11 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
             dice.transformations
           );
 
+          // Calculate the score with transformation multiplier if dice has settled with a value
+          const scoreWithMultiplier = dice.value !== undefined && dice.settled
+            ? Math.round(dice.value * transformationEffects.scoreMultiplier)
+            : undefined;
+
           return (
             <Dice
               key={dice.id}
@@ -796,12 +813,17 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
               }
               shaderEnabled={shaderEnabled}
               maxValue={getMaxValue(dice.type)}
+              diceType={dice.type}
               outOfBounds={dice.settled && !dice.inReceptacle}
               onCard={isOnCard}
+              isHovered={hoveredDiceId === dice.id}
               sizeMultiplier={transformationEffects.sizeMultiplier}
               massMultiplier={transformationEffects.massMultiplier}
               emissive={transformationEffects.emissive}
               emissiveIntensity={transformationEffects.emissiveIntensity}
+              transformations={getTransformationNames(dice.transformations)}
+              scoreMultiplier={transformationEffects.scoreMultiplier}
+              calculatedScore={scoreWithMultiplier}
             />
           );
         })}

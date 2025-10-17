@@ -11,10 +11,10 @@ export const RECEPTACLE_POSITION: [number, number, number] = [0.28, 0.62, 2.2];
 
 // Receptacle dimensions (in meters)
 export const RECEPTACLE_DIMENSIONS = {
-  width: 1.0,
+  width: .8,
   depth: 0.4,
   baseThickness: 0.03,
-  wallHeight: 0.08,
+  wallHeight: 0.09,
   wallThickness: 0.04
 };
 
@@ -60,9 +60,9 @@ export function getTowerCardPosition(): [number, number, number] {
   const innerDepth = depth - wallThickness * 20;
 
   return [
-    x + innerWidth / 2 - 1.465 / 2.3 - 0.05, // Right edge minus half card width minus margin
-    y + baseThickness + 0.012, // On top of felt surface
-    z - innerDepth / 1 + 0.295 / 4 - 0.03 // Top edge minus half card length minus margin
+    x + innerWidth / 2 - 1.405 / 3.05 - 0.05, // Right edge minus half card width minus margin
+    y + baseThickness + 0.01, // On top of felt surface
+    z - innerDepth / 1.6 + 0.245 / 3 - 0.02 // Top edge minus half card length minus margin
   ];
 }
 
@@ -79,9 +79,9 @@ export function getSunCardPosition(): [number, number, number] {
   const innerDepth = depth - wallThickness * 20;
 
   return [
-    x - innerWidth / 2 + 0.465 / 2 + 0.22, // Left edge plus half card width plus margin
+    x - innerWidth / 2 + 0.465 / 4 + 0.06, // Left edge plus half card width plus margin
     y + baseThickness + 0.012, // On top of felt surface
-    z + innerDepth / 1 - 0.295 / 4 + 0.49 // Bottom edge plus half card length plus margin
+    z + innerDepth / 1 - 0.295 / 4 + 0.59 // Bottom edge plus half card length plus margin
   ];
 }
 

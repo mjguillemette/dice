@@ -10,8 +10,7 @@ export interface InputState {
 
 export interface InputCallbacks {
   onStartGame?: () => void;
-  onToggleCamera?: () => void;
-  onNextCamera?: () => void;
+  onExitToMenu?: () => void;
   onIncreaseCorruption?: () => void;
   onDecreaseCorruption?: () => void;
   onToggleAutoCorruption?: () => void;
@@ -40,7 +39,17 @@ export function useInput(
       // Game start (only if gameState is provided)
       if (gameState && gameState.phase === 'menu' && e.code === 'Enter') {
         callbacks.onStartGame?.();
+        // Request pointer lock on game start
+        requestPointerLock();
         return; // Prevent other inputs in menu
+      }
+
+      // Exit to menu with Escape (only during gameplay)
+      if (gameState && gameState.phase !== 'menu' && e.code === 'Escape') {
+        callbacks.onExitToMenu?.();
+        // Release pointer lock when exiting
+        exitPointerLock();
+        return;
       }
 
       // UI controls can always be active
@@ -62,12 +71,6 @@ export function useInput(
             break;
           case 'KeyD':
             inputState.current.moveRight = true;
-            break;
-          case 'KeyC':
-            callbacks.onToggleCamera?.();
-            break;
-          case 'KeyN':
-            callbacks.onNextCamera?.();
             break;
           case 'KeyQ':
             callbacks.onDecreaseCorruption?.();

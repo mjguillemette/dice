@@ -1,0 +1,129 @@
+.dice-info-tooltip {
+  position: fixed;
+  background: rgba(15, 15, 20, 0.95);
+  border: 2px solid #ffa500;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: 'Courier New', monospace;
+  color: #e0e0e0;
+  min-width: 180px;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(255, 165, 0, 0.3);
+  animation: fadeIn 0.15s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dice-info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #444;
+}
+
+.dice-type {
+  font-size: 14px;
+  font-weight: bold;
+  color: #ffa500;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.dice-id {
+  font-size: 11px;
+  color: #888;
+  font-style: italic;
+}
+
+.dice-info-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dice-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.dice-info-label {
+  color: #aaa;
+  font-weight: normal;
+}
+
+.dice-info-value {
+  font-weight: bold;
+  color: #fff;
+}
+
+.dice-face {
+  font-size: 16px;
+  color: #4caf50;
+  text-shadow: 0 0 4px rgba(76, 175, 80, 0.5);
+}
+
+.dice-score {
+  color: #ffa500;
+}
+
+.dice-info-modifiers {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid #333;
+}
+
+.dice-info-modifiers .dice-info-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.modifier-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.modifier-tag {
+  background: rgba(100, 100, 255, 0.3);
+  border: 1px solid #6464ff;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 10px;
+  color: #aaf;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Special modifier colors */
+.modifier-tag.tower {
+  background: rgba(138, 43, 226, 0.3);
+  border-color: #8a2be2;
+  color: #dda0ff;
+}
+
+.modifier-tag.sun {
+  background: rgba(255, 215, 0, 0.3);
+  border-color: #ffd700;
+  color: #ffe066;
+}
+
+.modifier-tag.cursed {
+  background: rgba(255, 0, 0, 0.3);
+  border-color: #ff0000;
+  color: #ff6666;
+}

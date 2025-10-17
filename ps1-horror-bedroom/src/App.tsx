@@ -1,12 +1,12 @@
-import { useState, useReducer, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Canvas } from "@react-three/fiber";
 import Scene from "./components/Scene";
 import DevPanel from "./components/DevPanel";
 import Crosshair from "./components/ui/Crosshair";
-import ScoreDisplay from "./components/ui/ScoreDisplay";
-import Wallet from "./components/ui/Wallet";
+import GameHUD from "./components/ui/GameHUD";
+import { type DiceData } from "./components/ui/DiceInfo";
 import { useWallet } from "./hooks/useWallet";
-import { gameStateReducer, initialGameState } from "./systems/gameStateSystem";
+import { GameStateProvider, useGameState } from "./contexts/GameStateContext";
 import {
   type PlayerInventory,
   INITIAL_INVENTORY,
@@ -17,7 +17,9 @@ import {
 } from "./systems/itemSystem";
 import "./App.css";
 
-function App() {
+function AppContent() {
+  const { gameState, diceSettled: onDiceSettled, successfulRoll: onSuccessfulRoll, failedRoll: onFailedRoll, throwDice: onAttempt, itemSelected: onItemSelected, startGame: onStartGame } = useGameState();
+
   const [cameraName, setCameraName] = useState("First Person");
   const [cinematicMode, setCinematicMode] = useState(false);
   const [hellFactor, setHellFactor] = useState(0);
@@ -36,12 +38,12 @@ function App() {
   const [showCardDebugBounds, setShowCardDebugBounds] = useState(false);
   const [rollHistory, setRollHistory] = useState<number[]>([]);
   const [diceSettled, setDiceSettled] = useState(false);
+  const [hoveredDice, setHoveredDice] = useState<DiceData | null>(null);
 
   const [spotlightHeight, setSpotlightHeight] = useState(1.0);
   const [spotlightIntensity, setSpotlightIntensity] = useState(1.4);
   const [spotlightAngle, setSpotlightAngle] = useState(Math.PI / 6);
 
-  const [gameState, dispatch] = useReducer(gameStateReducer, initialGameState);
   const { balances, addCurrency, spendCurrency } = useWallet({ cents: 55 });
 
   const [inventory, setInventory] =
@@ -70,13 +72,13 @@ function App() {
 
         const newInventory = applyItemToInventory(inventory, item);
         setInventory(newInventory);
-        dispatch({ type: "ITEM_SELECTED" });
+        onItemSelected();
         return newInventory;
       } else {
         console.log("Purchase failed: Insufficient funds.");
       }
     },
-    [spendCurrency, setInventory, inventory]
+    [spendCurrency, setInventory, inventory, onItemSelected]
   );
 
   const handleSuccessfulRoll = useCallback(() => {
@@ -85,49 +87,44 @@ function App() {
     }
     setDiceScore(0);
     setDiceSettled(false);
-    dispatch({ type: "SUCCESSFUL_ROLL" });
-  }, [diceScore]);
+    onSuccessfulRoll();
+  }, [diceScore, onSuccessfulRoll]);
 
   const handleFailedRoll = useCallback(() => {
     setRollHistory((prev) => [...prev, diceScore]);
     setDiceScore(0);
     setDiceSettled(false);
-    dispatch({ type: "FAILED_ROLL" });
-  }, [diceScore]);
+    onFailedRoll();
+  }, [diceScore, onFailedRoll]);
 
-  const handleAttempt = useCallback(() => {
-    dispatch({ type: "THROW_DICE" });
-  }, []);
-
-  const handleDiceSettled = useCallback(() => {
+  const handleDiceSettled = useCallback((diceValues?: number[]) => {
     setDiceSettled(true);
-    dispatch({ type: "DICE_SETTLED" });
-  }, []);
+    onDiceSettled(diceValues);
+  }, [onDiceSettled]);
 
   const handleItemSelected = useCallback(
     (item: ItemDefinition) => {
       const newInventory = applyItemToInventory(inventory, item);
       setInventory(newInventory);
       setItemChoices([]);
-      dispatch({ type: "ITEM_SELECTED" });
+      onItemSelected();
     },
-    [inventory]
+    [inventory, onItemSelected]
   );
 
-  const handleStartGame = useCallback(() => {
-    dispatch({ type: "START_GAME" });
-    // You might want to request pointer lock here as well
-    // requestPointerLock(); 
-  }, []);
-
+  // Generate store choices once on mount
   useEffect(() => {
     const generatedStoreChoices = generateStoreChoices(5);
     setStoreChoices(generatedStoreChoices);
+  }, []); // Empty dependency - only run once
+
+  // Generate item choices when entering item_selection phase
+  useEffect(() => {
     if (gameState.phase === "item_selection" && itemChoices.length === 0) {
       const choices = generateItemChoices(inventory, 3);
       setItemChoices(choices);
     }
-  }, [gameState.phase, inventory, itemChoices.length, storeChoices]);
+  }, [gameState.phase, inventory, itemChoices.length]);
 
   useEffect(() => {
     setDiceCount(inventory.dice.d6);
@@ -157,16 +154,16 @@ function App() {
       )}
       {gameState.phase !== "menu" && !cinematicMode && <Crosshair />}
       {gameState.phase !== "menu" && (
-        <>
-          <ScoreDisplay
-            currentScore={diceScore}
-            rollHistory={rollHistory}
-            currentAttempt={gameState.currentAttempts}
-            maxAttempts={2}
-            isSettled={diceSettled}
-          />
-          <Wallet balances={balances} />
-        </>
+        <GameHUD
+          scores={gameState.scoring.currentScores}
+          timeOfDay={gameState.scoring.currentTimeOfDay}
+          currentAttempts={gameState.currentAttempts}
+          maxAttempts={2}
+          currentScore={diceScore}
+          isSettled={diceSettled}
+          balance={balances.cents}
+          hoveredDice={hoveredDice}
+        />
       )}
 
       {/* The Canvas is ONLY for 3D components */}
@@ -203,7 +200,7 @@ function App() {
           spotlightAngle={spotlightAngle}
           onSuccessfulRoll={handleSuccessfulRoll}
           onFailedRoll={handleFailedRoll}
-          onAttempt={handleAttempt}
+          onAttempt={onAttempt}
           onDiceSettled={handleDiceSettled}
           daysMarked={gameState.daysMarked}
           currentAttempts={gameState.currentAttempts}
@@ -215,11 +212,12 @@ function App() {
           isStoreOpen={true}
           onDieSettledForCurrency={handleDieSettledForCurrency}
           onPurchase={handlePurchase}
-          onCloseStore={() => dispatch({ type: "ITEM_SELECTED" })}
+          onCloseStore={onItemSelected}
           spendCurrency={spendCurrency}
           playerBalance={balances.cents}
           gameState={gameState}
-          onStartGame={handleStartGame}
+          onStartGame={onStartGame}
+          onDiceHover={setHoveredDice}
         />
       </Canvas>
 
@@ -263,6 +261,14 @@ function App() {
         onTestSuccessfulRoll={handleSuccessfulRoll}
       />
     </div>
+  );
+}
+
+function App() {
+  return (
+    <GameStateProvider>
+      <AppContent />
+    </GameStateProvider>
   );
 }
 

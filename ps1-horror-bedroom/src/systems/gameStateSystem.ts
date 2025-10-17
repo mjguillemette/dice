@@ -3,6 +3,9 @@
  * Manages the comprehensive state machine for time passage and game progression
  */
 
+import type { ScoringState, ScoreCategoryData, DiceRoll } from "./scoringSystem";
+import { calculateScores, updateBestScores, initialScoringState, initializeEmptyScores } from "./scoringSystem";
+
 // ===== TYPES & INTERFACES =====
 
 export type TimeOfDay = "morning" | "midday" | "night";
@@ -30,12 +33,16 @@ export interface GameState {
   // History (for debugging/analytics)
   totalAttempts: number;
   totalSuccesses: number;
+
+  // Scoring system
+  scoring: ScoringState;
 }
 
 export type GameAction =
   | { type: "START_GAME" }
+  | { type: "RETURN_TO_MENU" }
   | { type: "THROW_DICE" }
-  | { type: "DICE_SETTLED" }
+  | { type: "DICE_SETTLED"; diceRoll?: DiceRoll } // Include dice values for scoring
   | { type: "SUCCESSFUL_ROLL" }
   | { type: "FAILED_ROLL" }
   | { type: "PICKUP_DICE" }
@@ -57,7 +64,8 @@ export const initialGameState: GameState = {
   currentAttempts: 0,
   phase: "menu",
   totalAttempts: 0,
-  totalSuccesses: 0
+  totalSuccesses: 0,
+  scoring: initialScoringState
 };
 
 // ===== STATE MACHINE LOGIC =====
@@ -102,6 +110,17 @@ export function gameStateReducer(
         phase: "idle"
       };
     }
+
+    case "RETURN_TO_MENU": {
+      // Return to menu - reset to initial state but keep history
+      console.log("🔙 Returning to menu");
+      return {
+        ...initialGameState,
+        totalAttempts: state.totalAttempts,
+        totalSuccesses: state.totalSuccesses
+      };
+    }
+
     case "THROW_DICE": {
       // Can only throw from idle or settled states
       if (state.phase !== "idle" && state.phase !== "settled") {
@@ -128,9 +147,31 @@ export function gameStateReducer(
         );
       }
 
+      // Calculate scores if dice roll data provided
+      let newScoring = state.scoring;
+      if (action.diceRoll) {
+        const rollScores = calculateScores(action.diceRoll);
+        console.log("🎯 Calculated scores for roll:", rollScores);
+
+        // Update current scores (best scores for this time period)
+        const updatedCurrentScores = updateBestScores(state.scoring.currentScores, rollScores);
+
+        // Also update historical scores for this time period
+        const historicalScores = { ...state.scoring.historicalScores };
+        historicalScores[state.timeOfDay] = updatedCurrentScores;
+
+        newScoring = {
+          ...state.scoring,
+          currentScores: updatedCurrentScores,
+          historicalScores,
+          currentTimeOfDay: state.timeOfDay
+        };
+      }
+
       return {
         ...state,
-        phase: "settled"
+        phase: "settled",
+        scoring: newScoring
       };
     }
 
@@ -159,13 +200,25 @@ export function gameStateReducer(
       // Check if we just completed a full day (night -> morning transition)
       const justCompletedDay = shouldAdvanceTime && state.timeOfDay === "night";
 
+      // Reset current scores when time period changes
+      let newScoring = state.scoring;
+      if (shouldAdvanceTime) {
+        newScoring = {
+          ...state.scoring,
+          currentScores: initializeEmptyScores(),
+          currentTimeOfDay: newTimeState.timeOfDay as TimeOfDay
+        };
+        console.log("📊 Scores reset for new time period:", newTimeState.timeOfDay);
+      }
+
       return {
         ...state,
         phase: justCompletedDay ? "item_selection" : "idle",
         successfulRolls: newSuccesses,
         currentAttempts: 0, // Reset attempts after round completes
         totalSuccesses: state.totalSuccesses + 1,
-        ...newTimeState
+        ...newTimeState,
+        scoring: newScoring
       };
     }
 
@@ -199,12 +252,24 @@ export function gameStateReducer(
         const justCompletedDay =
           shouldAdvanceTime && state.timeOfDay === "night";
 
+        // Reset current scores when time period changes
+        let newScoring = state.scoring;
+        if (shouldAdvanceTime) {
+          newScoring = {
+            ...state.scoring,
+            currentScores: initializeEmptyScores(),
+            currentTimeOfDay: newTimeState.timeOfDay as TimeOfDay
+          };
+          console.log("📊 Scores reset for new time period:", newTimeState.timeOfDay);
+        }
+
         return {
           ...state,
           phase: justCompletedDay ? "item_selection" : "idle",
           successfulRolls: newSuccesses,
           currentAttempts: 0, // Reset attempts for next round
-          ...newTimeState
+          ...newTimeState,
+          scoring: newScoring
         };
       } else {
         // Still have attempts left in this round

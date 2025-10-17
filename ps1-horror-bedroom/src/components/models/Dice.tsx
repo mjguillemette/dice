@@ -38,6 +38,8 @@ interface DiceProps {
   outOfBounds?: boolean; // Whether dice is out of bounds (red tint)
   onCard?: boolean; // Whether dice is on a card (blue tint)
   diceId?: number; // Unique ID for collision detection
+  diceType?: string; // Type of dice: "d6", "d4", "d3", "coin", "thumbtack"
+  isHovered?: boolean; // Whether the dice is currently being hovered
 
   // Transformation effects
   sizeMultiplier?: number;
@@ -45,6 +47,9 @@ interface DiceProps {
   colorTint?: number;
   emissive?: number;
   emissiveIntensity?: number;
+  transformations?: string[]; // List of transformation modifiers applied
+  scoreMultiplier?: number; // Score multiplier from transformations
+  calculatedScore?: number; // Pre-calculated score with transformations applied
 }
 
 export interface DiceHandle {
@@ -68,7 +73,12 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
       colorTint,
       emissive,
       emissiveIntensity = 0,
-      diceId
+      diceId,
+      diceType = "d6",
+      isHovered = false,
+      transformations = [],
+      scoreMultiplier = 1.0,
+      calculatedScore
     },
     ref
   ) => {
@@ -154,6 +164,25 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
         );
       }
     }, [sizeMultiplier]);
+
+    // Update mesh userData for raycasting detection
+    useEffect(() => {
+      if (meshRef.current && settled) {
+        // Use the pre-calculated score from DiceManager if available, otherwise calculate base score
+        const scoreValue = calculatedScore !== undefined
+          ? calculatedScore
+          : Math.round(diceValue * scoreMultiplier);
+
+        meshRef.current.userData = {
+          isDice: true,
+          diceId: diceId,
+          diceType: diceType,
+          faceValue: diceValue,
+          score: scoreValue,
+          modifiers: transformations
+        };
+      }
+    }, [settled, diceId, diceType, diceValue, transformations, scoreMultiplier, calculatedScore]);
 
     // Check if dice has settled
     useFrame(() => {
@@ -582,6 +611,8 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
       }
     };
 
+    const OUTLINE_THICKNESS = 1.15;
+
     return (
       <RigidBody
         ref={rigidBodyRef}
@@ -598,6 +629,16 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
       >
         {/* Manual collider that scales with animatedScale and matches geometry type */}
         {renderCollider()}
+
+        {/* Outline mesh - only visible when hovered */}
+        {isHovered && settled && (
+          <mesh
+            scale={[animatedScale * OUTLINE_THICKNESS, animatedScale * OUTLINE_THICKNESS, animatedScale * OUTLINE_THICKNESS]}
+          >
+            {renderGeometry()}
+            <meshBasicMaterial color={0xffa500} side={THREE.BackSide} />
+          </mesh>
+        )}
 
         <mesh
           ref={meshRef}
