@@ -165,7 +165,17 @@ function AppContent() {
       {/* 2D UI Components are rendered here, outside of the Canvas */}
       {gameState.phase === "menu" && (
         <div className="menu-overlay">
-          <h1>Enter to Play</h1>
+          <h1>Enter: Start Game</h1>
+          <input
+            type="text"
+            style={{ position: "absolute", top: "-1000px" }}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                onStartGame();
+              }
+            }}
+          />
         </div>
       )}
       {gameState.phase !== "menu" && !cinematicMode && <Crosshair />}
