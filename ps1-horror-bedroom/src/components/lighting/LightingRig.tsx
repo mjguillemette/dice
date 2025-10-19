@@ -96,17 +96,6 @@ export function LightingRig({
     const nextTime = getNextTimePeriod(timeOfDay);
     const timeConfig = getTimeConfig(timeOfDay, nextTime, timeProgress);
 
-    // Log once per second for debugging
-    if (Math.floor(time) !== Math.floor(time - 0.016)) {
-      console.log("💡 LightingRig:", {
-        timeOfDay,
-        timeProgress: timeProgress.toFixed(2),
-        ambientIntensity: timeConfig.ambientIntensity.toFixed(2),
-        windowIntensity: timeConfig.windowIntensity.toFixed(2),
-        ceilingIntensity: timeConfig.ceilingIntensity.toFixed(2)
-      });
-    }
-
     // Ambient light: blend time of day with corruption
     if (ambientLightRef.current) {
       ambientLightRef.current.color.set(timeConfig.ambientColor);

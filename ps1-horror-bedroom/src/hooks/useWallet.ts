@@ -16,6 +16,7 @@ export interface WalletState {
  */
 export const useWallet = <T extends WalletState>(initialState: T) => {
   const [balances, setBalances] = useState<T>(initialState);
+  const [storedInitialState] = useState<T>(initialState);
 
   /**
    * Adds a specified amount to a specific currency type in the wallet.
@@ -45,5 +46,9 @@ export const useWallet = <T extends WalletState>(initialState: T) => {
     return false;
   }
 
-  return { balances, addCurrency, spendCurrency };
+  const resetWallet = useCallback(() => {
+    setBalances(storedInitialState);
+  }, [storedInitialState]);
+
+  return { balances, addCurrency, spendCurrency, resetWallet };
 };

@@ -47,7 +47,7 @@ export const TRANSFORMATION_TEMPLATES: Record<
   tarot_boost: {
     type: "tarot_boost",
     appliedAt: 0,
-    sizeMultiplier: 1.03,
+    sizeMultiplier: 1.08,
     massMultiplier: 1.03,
     scoreMultiplier: 1.2, // Each tarot boost increases score by 20%
     description: "Mystical power flows through this die",

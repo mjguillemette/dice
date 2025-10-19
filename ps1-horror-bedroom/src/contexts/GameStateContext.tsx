@@ -17,9 +17,9 @@ interface GameStateContextValue {
   dispatch: React.Dispatch<GameAction>;
   // Convenience methods for common actions
   startGame: () => void;
-  throwDice: () => void;
-  diceSettled: (diceValues?: number[]) => void;
-  successfulRoll: () => void;
+  throwDice: (corruptionPerRoll?: number) => void;
+  diceSettled: (diceValues?: number[], diceIds?: number[], scoreMultipliers?: number[], comboMultiplierActive?: boolean, previousScores?: any[]) => void;
+  successfulRoll: (cigaretteBonus?: number) => void;
   failedRoll: () => void;
   itemSelected: () => void;
   returnToMenu: () => void;
@@ -41,27 +41,31 @@ export function GameStateProvider({ children }: GameStateProviderProps) {
     dispatch({ type: "START_GAME" });
   }, []);
 
-  const throwDice = useCallback(() => {
-    dispatch({ type: "THROW_DICE" });
+  const throwDice = useCallback((corruptionPerRoll?: number) => {
+    dispatch({ type: "THROW_DICE", corruptionPerRoll });
   }, []);
 
-  const diceSettled = useCallback((diceValues?: number[]) => {
+  const diceSettled = useCallback((diceValues?: number[], diceIds?: number[], scoreMultipliers?: number[], comboMultiplierActive?: boolean, previousScores?: any[]) => {
     if (diceValues && diceValues.length > 0) {
       const total = diceValues.reduce((sum, val) => sum + val, 0);
       dispatch({
         type: "DICE_SETTLED",
         diceRoll: {
           values: diceValues,
-          total
-        }
+          total,
+          diceIds,
+          scoreMultipliers
+        },
+        comboMultiplierActive,
+        previousScores
       });
     } else {
       dispatch({ type: "DICE_SETTLED" });
     }
   }, []);
 
-  const successfulRoll = useCallback(() => {
-    dispatch({ type: "SUCCESSFUL_ROLL" });
+  const successfulRoll = useCallback((cigaretteBonus?: number) => {
+    dispatch({ type: "SUCCESSFUL_ROLL", cigaretteBonus });
   }, []);
 
   const failedRoll = useCallback(() => {

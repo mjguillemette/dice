@@ -9,14 +9,41 @@
 // Receptacle position in world space
 export const RECEPTACLE_POSITION: [number, number, number] = [0.28, 0.62, 2.2];
 
-// Receptacle dimensions (in meters)
-export const RECEPTACLE_DIMENSIONS = {
-  width: .8,
-  depth: 0.4,
-  baseThickness: 0.03,
-  wallHeight: 0.09,
-  wallThickness: 0.04
+// Receptacle dimensions (in meters) - Base values
+const BASE_RECEPTACLE_DIMENSIONS = {
+  width: 1.2,
+  depth: 1.41,
+  baseThickness: 0.0376,
+  wallHeight: 0.086,
+  wallThickness: 0.05
 };
+
+// Mutable copy for runtime adjustments
+export let RECEPTACLE_DIMENSIONS = { ...BASE_RECEPTACLE_DIMENSIONS };
+
+// Dev-adjustable collision bounds offsets (added to calculated bounds)
+export let COLLISION_BOUNDS_OFFSET = {
+  minX: 0,
+  maxX: 0,
+  minZ: 0,
+  maxZ: 0,
+  wallHeight: 0,  // Offset for wall height
+  depth: 0         // Offset for floor depth
+};
+
+/**
+ * Update collision bounds offset (for dev panel controls)
+ */
+export function updateCollisionBoundsOffset(offsets: Partial<typeof COLLISION_BOUNDS_OFFSET>) {
+  COLLISION_BOUNDS_OFFSET = { ...COLLISION_BOUNDS_OFFSET, ...offsets };
+}
+
+/**
+ * Update receptacle dimensions (for dev panel controls)
+ */
+export function updateReceptacleDimensions(dimensions: Partial<typeof RECEPTACLE_DIMENSIONS>) {
+  RECEPTACLE_DIMENSIONS = { ...RECEPTACLE_DIMENSIONS, ...dimensions };
+}
 
 /**
  * Calculate the 2D bounds of the receptacle for dice detection
@@ -31,10 +58,10 @@ export function getReceptacleBounds() {
   const innerDepth = depth - wallThickness * 2;
 
   return {
-    minX: x - innerWidth / 2,
-    maxX: x + innerWidth / 2,
-    minZ: z - innerDepth / 2,
-    maxZ: z + innerDepth / 2
+    minX: x - innerWidth / 2 + COLLISION_BOUNDS_OFFSET.minX,
+    maxX: x + innerWidth / 2 + COLLISION_BOUNDS_OFFSET.maxX,
+    minZ: z - innerDepth / 2 + COLLISION_BOUNDS_OFFSET.minZ,
+    maxZ: z + innerDepth / 2 + COLLISION_BOUNDS_OFFSET.maxZ
   };
 }
 

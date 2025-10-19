@@ -1,11 +1,11 @@
 .dice-info-tooltip {
   position: fixed;
-  background: rgba(15, 15, 20, 0.95);
-  border: 2px solid #ffa500;
+  background: #fade3e;
+  border: 2px solid #fade3e80;
   border-radius: 6px;
   padding: 10px 12px;
   font-family: 'Courier New', monospace;
-  color: #e0e0e0;
+  color: #16161d;
   min-width: 180px;
   z-index: 1000;
   pointer-events: none;
@@ -36,7 +36,7 @@
 .dice-type {
   font-size: 14px;
   font-weight: bold;
-  color: #ffa500;
+  color: #fade;
   text-transform: uppercase;
   letter-spacing: 1px;
 }

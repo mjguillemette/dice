@@ -43,7 +43,9 @@ export function ItemChoice({
   const rarityColors: Record<ItemDefinition["rarity"], number> = {
     common: 0x999999,
     uncommon: 0x4488ff,
-    rare: 0xffd700
+    rare: 0xffd700,
+    epic: 0xff44ff,
+    legendary: 0xff0000
   };
   const rarityColor = rarityColors[item.rarity];
 
@@ -305,12 +307,45 @@ export function ItemChoice({
           receiveShadow
         />
       </RigidBody>
+      {/* Item name label - always shown when hovered */}
+      {isHovered && item && (
+        <Billboard
+          position={[0, Math.max(itemSize[2], itemSize[1]) * 2.2, 0]}
+          renderOrder={9999999}
+        >
+          <Text
+            fontSize={0.035}
+            color={"#ffffff"}
+            outlineWidth={0.002}
+            outlineColor={rarityColor}
+            font="Jersey25-Regular.ttf"
+            depthOffset={25555}
+          >
+            {item.name}
+          </Text>
+        </Billboard>
+      )}
+      {/* Item description tooltip - shown when hovered */}
+      {isHovered && item && (
+        <Billboard position={[0, Math.max(itemSize[2], itemSize[1]) * 1.5, 0]}>
+          <Text
+            fontSize={0.025}
+            color={"#cccccc"}
+            font="Jersey25-Regular.ttf"
+            maxWidth={1.5}
+            textAlign="center"
+          >
+            {item.description}
+          </Text>
+        </Billboard>
+      )}
+      {/* Price label - only shown for items with prices */}
       {isHovered &&
         item &&
         typeof item.price === "number" &&
         item.price > 0 && (
           <Billboard
-            position={[0, Math.max(itemSize[2], itemSize[1]) * - 2.18, 0]}
+            position={[0, Math.max(itemSize[2], itemSize[1]) * 2.18, 0]}
           >
             <Text
               fontSize={0.045}

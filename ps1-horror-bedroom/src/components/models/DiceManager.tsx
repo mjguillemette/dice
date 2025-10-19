@@ -18,6 +18,7 @@ import {
   applyTransformation,
   calculateTransformationEffects
 } from "../../systems/diceTransformationSystem";
+import { getPhysicsConfig } from "../../config/physics.config";
 
 type DiceStatus =
   | "inHand"
@@ -27,7 +28,7 @@ type DiceStatus =
 
 interface DiceInstance {
   id: number;
-  type: "d6" | "coin" | "d3" | "d4" | "thumbtack";
+  type: "d6" | "coin" | "nickel" | "d3" | "d4" | "thumbtack";
   position?: [number, number, number]; // present while thrown/settled
   initialVelocity?: [number, number, number];
   initialAngularVelocity?: [number, number, number];
@@ -42,6 +43,7 @@ interface DiceInstance {
 interface DiceManagerProps {
   diceCount: number;
   coinCount: number;
+  nickelCount: number;
   d3Count: number;
   d4Count: number;
   thumbTackCount: number;
@@ -54,6 +56,16 @@ interface DiceManagerProps {
   ) => void; // Callback with dice IDs on each card
   onCoinSettled?: (type: string, amount: number) => void;
   hoveredDiceId?: number | null; // ID of the currently hovered dice
+  highlightedDiceIds: number[]; // Dice IDs to highlight from scorecard hover
+}
+
+export interface SettledDieData {
+  id: number;
+  type: "d6" | "coin" | "nickel" | "d3" | "d4" | "thumbtack";
+  value: number;
+  inReceptacle: boolean;
+  scoreMultiplier?: number; // From transformations
+  modifiers?: string[]; // List of modifier names for display
 }
 
 export interface DiceManagerHandle {
@@ -72,12 +84,14 @@ export interface DiceManagerHandle {
   updateDicePool: (newCounts: {
     d6: number;
     coins: number;
+    nickels: number;
     d3: number;
     d4: number;
     thumbtacks: number;
   }) => void; // Update dice pool without losing transformations
   startNewRound: () => void; // Start a new round - pick up all dice and reset score
   applyCardTransformation: (diceId: number, cardType: "sun" | "tower") => void; // Apply transformation when die collides with card
+  getSettledDice: () => SettledDieData[]; // Get all settled dice with their values and IDs
 }
 
 const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
@@ -85,6 +99,7 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
     {
       diceCount,
       coinCount,
+      nickelCount,
       d3Count,
       d4Count,
       thumbTackCount,
@@ -114,19 +129,14 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
     const TOWER_CARD_BOUNDS = getTowerCardBounds();
     const SUN_CARD_BOUNDS = getSunCardBounds();
 
-    // Debug: Log bounds once
-    console.log("🎯 DiceManager bounds:", {
-      receptacle: RECEPTACLE_BOUNDS,
-      towerCard: TOWER_CARD_BOUNDS,
-      sunCard: SUN_CARD_BOUNDS
-    });
-
     const getMaxValue = (type: DiceInstance["type"]): number => {
       switch (type) {
         case "thumbtack":
           return 1;
         case "coin":
           return 2;
+        case "nickel":
+          return 2; // Nickel rolls 5 or 10 (represented as 1 or 2, multiplied by 5)
         case "d3":
           return 3;
         case "d4":
@@ -183,13 +193,21 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       const distance =
         Math.sqrt(directionX * directionX + directionZ * directionZ) || 1;
 
-      const basePower = 0.01;
-      const distanceMultiplier = Math.min(distance * 0.3, 2.0);
-      const throwPower = basePower + distanceMultiplier + Math.random() * 0.5;
+      // Get physics config (allows dev panel to adjust in real-time)
+      const physics = getPhysicsConfig();
 
-      let velocityY = -6 - Math.random() * 0.2;
+      const basePower = physics.basePower;
+      const distanceMultiplier = Math.min(distance * physics.distanceMultiplier, physics.maxDistanceBoost);
+      const throwPower = basePower + distanceMultiplier + Math.random() * physics.powerVariation;
+
+      // Calculate lob arc
+      let velocityY = physics.baseUpwardVelocity - Math.random() * physics.upwardVariation;
+      const arcBoost = Math.min(distance * physics.arcBoostMultiplier, physics.maxArcBoost);
+      velocityY -= arcBoost;
+
       if (cameraDirection) {
-        velocityY = cameraDirection.y * throwPower - Math.random() * 0.2;
+        const camInfluence = cameraDirection.y * throwPower * 0.5;
+        velocityY = Math.min(velocityY, camInfluence - arcBoost);
       }
 
       const initialVelocity: [number, number, number] = [
@@ -198,10 +216,12 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
         (directionZ / distance) * throwPower
       ];
 
+      // Tumbling based on physics config
+      const angVel = physics.angularVelocity;
       const initialAngularVelocity: [number, number, number] = [
-        (Math.random() - 0.5) * 15,
-        (Math.random() - 0.5) * 15,
-        (Math.random() - 0.5) * 15
+        (Math.random() - 0.5) * angVel,
+        (Math.random() - 0.5) * angVel,
+        (Math.random() - 0.5) * angVel
       ];
 
       return {
@@ -219,7 +239,7 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
     };
 
     const throwDice = useCallback(
-      (clickPosition: THREE.Vector3, throwOrigin?: THREE.Vector3) => {
+      (clickPosition: THREE.Vector3, throwOrigin?: THREE.Vector3, _chargeAmount?: number, cameraDirection?: THREE.Vector3) => {
         if (isThrowing) return;
 
         generationRef.current += 1;
@@ -237,19 +257,23 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
             const created: DiceInstance[] = [];
             for (let i = 0; i < diceCount; i++)
               created.push(
-                createDieObject("d6", thisGeneration, origin, clickPosition)
+                createDieObject("d6", thisGeneration, origin, clickPosition, cameraDirection)
               );
             for (let i = 0; i < coinCount; i++)
               created.push(
-                createDieObject("coin", thisGeneration, origin, clickPosition)
+                createDieObject("coin", thisGeneration, origin, clickPosition, cameraDirection)
+              );
+            for (let i = 0; i < nickelCount; i++)
+              created.push(
+                createDieObject("nickel", thisGeneration, origin, clickPosition, cameraDirection)
               );
             for (let i = 0; i < d3Count; i++)
               created.push(
-                createDieObject("d3", thisGeneration, origin, clickPosition)
+                createDieObject("d3", thisGeneration, origin, clickPosition, cameraDirection)
               );
             for (let i = 0; i < d4Count; i++)
               created.push(
-                createDieObject("d4", thisGeneration, origin, clickPosition)
+                createDieObject("d4", thisGeneration, origin, clickPosition, cameraDirection)
               );
             for (let i = 0; i < thumbTackCount; i++)
               created.push(
@@ -257,7 +281,8 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
                   "thumbtack",
                   thisGeneration,
                   origin,
-                  clickPosition
+                  clickPosition,
+                  cameraDirection
                 )
               );
             return created;
@@ -283,21 +308,27 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
                 Math.sqrt(directionX * directionX + directionZ * directionZ) ||
                 1;
 
-              const basePower = 2.5;
-              const distanceMultiplier = Math.min(distance * 0.5, 2.0);
-              const throwPower =
-                basePower + distanceMultiplier + Math.random() * 0.5;
+              // Get physics config (same as createDieObject)
+              const physics = getPhysicsConfig();
+
+              const basePower = physics.basePower;
+              const distanceMultiplier = Math.min(distance * physics.distanceMultiplier, physics.maxDistanceBoost);
+              const throwPower = basePower + distanceMultiplier + Math.random() * physics.powerVariation;
+
+              const arcBoost = Math.min(distance * physics.arcBoostMultiplier, physics.maxArcBoost);
 
               const initialVelocity: [number, number, number] = [
                 (directionX / distance) * throwPower,
-                -0.5 - Math.random() * 0.3,
+                physics.baseUpwardVelocity - Math.random() * physics.upwardVariation - arcBoost,
                 (directionZ / distance) * throwPower
               ];
 
+              // Tumbling based on physics config
+              const angVel = physics.angularVelocity;
               const initialAngularVelocity: [number, number, number] = [
-                (Math.random() - 0.5) * 15,
-                (Math.random() - 0.5) * 15,
-                (Math.random() - 0.5) * 15
+                (Math.random() - 0.5) * angVel,
+                (Math.random() - 0.5) * angVel,
+                (Math.random() - 0.5) * angVel
               ];
 
               return {
@@ -447,6 +478,7 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       (newCounts: {
         d6: number;
         coins: number;
+        nickels: number;
         d3: number;
         d4: number;
         thumbtacks: number;
@@ -455,6 +487,7 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
           const totalByType = {
             d6: prev.filter((d) => d.type === "d6").length,
             coin: prev.filter((d) => d.type === "coin").length,
+            nickel: prev.filter((d) => d.type === "nickel").length,
             d3: prev.filter((d) => d.type === "d3").length,
             d4: prev.filter((d) => d.type === "d4").length,
             thumbtack: prev.filter((d) => d.type === "thumbtack").length
@@ -472,6 +505,11 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
               type: "coin",
               current: totalByType.coin,
               target: newCounts.coins
+            },
+            {
+              type: "nickel",
+              current: totalByType.nickel,
+              target: newCounts.nickels
             },
             { type: "d3", current: totalByType.d3, target: newCounts.d3 },
             { type: "d4", current: totalByType.d4, target: newCounts.d4 },
@@ -580,6 +618,7 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       updateDicePool({
         d6: diceCount,
         coins: coinCount,
+        nickels: nickelCount,
         d3: d3Count,
         d4: d4Count,
         thumbtacks: thumbTackCount
@@ -587,11 +626,31 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
     }, [
       diceCount,
       coinCount,
+      nickelCount,
       d3Count,
       d4Count,
       thumbTackCount,
       updateDicePool
     ]);
+
+    const getSettledDice = useCallback((): SettledDieData[] => {
+      return diceInstances
+        .filter((d) => d.settled && d.value !== undefined)
+        .map((d) => {
+          // Calculate transformation effects for this die
+          const effects = calculateTransformationEffects(d.transformations);
+          const modifierNames = d.transformations.map(t => t.type);
+
+          return {
+            id: d.id,
+            type: d.type,
+            value: d.value!,
+            inReceptacle: d.inReceptacle,
+            scoreMultiplier: effects.scoreMultiplier,
+            modifiers: modifierNames
+          };
+        });
+    }, [diceInstances]);
 
     useImperativeHandle(ref, () => ({
       throwDice,
@@ -603,7 +662,8 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       resetDice,
       updateDicePool,
       startNewRound,
-      applyCardTransformation
+      applyCardTransformation,
+      getSettledDice
     }));
 
     const handleDiceSettled = useCallback(
@@ -705,12 +765,30 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
 
         if (inReceptacle && typeof value === "number") {
           const effects = calculateTransformationEffects(dieTransformations);
-          let finalValueForScore = value; // Grant currency for the initial, physical landing of the die
 
-          if (type === "coin" && onCoinSettled) {
+          // Check if this is an edge landing (special value 10 for coins)
+          const isEdgeLanding = value === 10 && (type === "coin" || type === "nickel");
+
+          // For scoring purposes, normalize edge landing to average value (1.5)
+          let finalValueForScore = isEdgeLanding ? 1.5 : value;
+
+          if ((type === "coin" || type === "nickel") && onCoinSettled) {
             // Use the die's actual face value for currency calculation
+            // Nickels roll 1-2, but represent 5¢ or 10¢
+            // Special case: value 10 means coin landed on edge (10x bonus!)
+            let baseValue = value;
+            let edgeMultiplier = 1;
+
+            if (isEdgeLanding) {
+              // Edge landing! Use average value (1.5 for coins) with 10x multiplier
+              baseValue = 1.5;
+              edgeMultiplier = 10;
+              console.log("🪙✨ EDGE LANDING BONUS: 10x multiplier applied!");
+            }
+
+            const currencyMultiplier = type === "nickel" ? 5 : 1;
             const currencyForThisRoll = Math.round(
-              value * effects.scoreMultiplier
+              baseValue * currencyMultiplier * effects.scoreMultiplier * edgeMultiplier
             );
             if (currencyForThisRoll > 0) {
               onCoinSettled(type, currencyForThisRoll);
@@ -726,9 +804,10 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
             const newValue = Math.floor(Math.random() * maxValue) + 1;
             finalValueForScore = newValue; // The score is based on the LAST value // Grant ADDITIONAL currency for this conceptual roll
 
-            if (type === "coin" && onCoinSettled) {
+            if ((type === "coin" || type === "nickel") && onCoinSettled) {
+              const currencyMultiplier = type === "nickel" ? 5 : 1;
               const additionalCurrency = Math.round(
-                newValue * effects.scoreMultiplier
+                newValue * currencyMultiplier * effects.scoreMultiplier
               );
               if (additionalCurrency > 0) {
                 console.log(

@@ -3,7 +3,7 @@
  * Manages the comprehensive state machine for time passage and game progression
  */
 
-import type { ScoringState, DiceRoll } from "./scoringSystem";
+import type { ScoringState, DiceRoll, ScoreCategoryData } from "./scoringSystem";
 import {
   calculateScores,
   updateBestScores,
@@ -41,14 +41,25 @@ export interface GameState {
 
   // Scoring system
   scoring: ScoringState;
+
+  // Daily targets and corruption
+  dailyTarget: number; // Score target for today
+  dailyBestScore: number; // Best score achieved today
+  corruption: number; // 0-1, where 1 is game over
+  isGameOver: boolean; // True when corruption reaches 100%
 }
 
 export type GameAction =
   | { type: "START_GAME" }
   | { type: "RETURN_TO_MENU" }
-  | { type: "THROW_DICE" }
-  | { type: "DICE_SETTLED"; diceRoll?: DiceRoll } // Include dice values for scoring
-  | { type: "SUCCESSFUL_ROLL" }
+  | { type: "THROW_DICE"; corruptionPerRoll?: number } // Add corruption modifier from items
+  | {
+      type: "DICE_SETTLED";
+      diceRoll?: DiceRoll;
+      comboMultiplierActive?: boolean; // Whether incense is active
+      previousScores?: ScoreCategoryData[]; // For combo tracking
+    }
+  | { type: "SUCCESSFUL_ROLL"; cigaretteBonus?: number } // Corruption scaling from cigarette
   | { type: "FAILED_ROLL" }
   | { type: "PICKUP_DICE" }
   | { type: "RESET_ATTEMPTS" }
@@ -60,6 +71,28 @@ export const ROLLS_PER_TIME_PERIOD = 3;
 export const MAX_ATTEMPTS_PER_ROUND = 2; // Changed from 3 to 2
 export const MAX_CALENDAR_DAYS = 31;
 
+// Daily target calculation: exponential growth
+export const BASE_TARGET = 30; // Starting target for day 1 (sum of all score buckets)
+export const TARGET_GROWTH_RATE = 1.5; // 50% increase per day - significantly faster exponential growth
+export const CORRUPTION_PER_THROW = 0.02; // 2% corruption increase per throw
+export const CORRUPTION_DECREASE_ON_SUCCESS = 0.25; // Decrease corruption when target met (unused, now % based)
+
+/**
+ * Calculate the target score for a given day (exponential growth)
+ */
+export function calculateDailyTarget(day: number): number {
+  return Math.floor(BASE_TARGET * Math.pow(TARGET_GROWTH_RATE, day - 1));
+}
+
+/**
+ * Calculate total score from all achieved score buckets
+ */
+export function calculateTotalScore(scores: import("./scoringSystem").ScoreCategoryData[]): number {
+  return scores.reduce((total, score) => {
+    return total + (score.achieved ? score.score : 0);
+  }, 0);
+}
+
 // ===== INITIAL STATE =====
 
 export const initialGameState: GameState = {
@@ -70,7 +103,11 @@ export const initialGameState: GameState = {
   phase: "menu",
   totalAttempts: 0,
   totalSuccesses: 0,
-  scoring: initialScoringState
+  scoring: initialScoringState,
+  dailyTarget: calculateDailyTarget(2), // Target for day 2
+  dailyBestScore: 0,
+  corruption: 0,
+  isGameOver: false
 };
 
 // ===== STATE MACHINE LOGIC =====
@@ -110,9 +147,19 @@ export function gameStateReducer(
 
   switch (action.type) {
     case "START_GAME": {
+      // If game over, reset to initial state
+      if (state.isGameOver) {
+        console.log("🔄 Resetting game after game over");
+        return {
+          ...initialGameState,
+          phase: "item_selection"  // Start with item selection on first morning
+        };
+      }
+
+      // Otherwise just start the game with item selection
       return {
         ...state,
-        phase: "idle"
+        phase: "item_selection"  // Start with item selection on first morning
       };
     }
 
@@ -135,11 +182,45 @@ export function gameStateReducer(
 
       const newAttempts = state.currentAttempts + 1;
 
+      // Reset scores if we're starting fresh in a new time period
+      // (Check if current time of day doesn't match the scoring time of day)
+      let newScoring = state.scoring;
+      if (
+        newAttempts === 1 &&
+        state.scoring.currentTimeOfDay !== state.timeOfDay
+      ) {
+        newScoring = {
+          ...state.scoring,
+          currentScores: initializeEmptyScores(),
+          currentTimeOfDay: state.timeOfDay
+        };
+        console.log(
+          "📊 Scores reset for new time period:",
+          state.timeOfDay
+        );
+      }
+
+      // Increase corruption by base 2% per throw + any additional corruption from items (e.g. cigarette)
+      const totalCorruptionIncrease = CORRUPTION_PER_THROW + (action.corruptionPerRoll || 0);
+      const newCorruption = Math.min(1, state.corruption + totalCorruptionIncrease);
+      const isGameOver = newCorruption >= 1;
+
+      if (action.corruptionPerRoll && action.corruptionPerRoll > 0) {
+        console.log("🚬 Cigarette effect: +" + Math.floor(action.corruptionPerRoll * 100) + "% corruption (Total: +" + Math.floor(totalCorruptionIncrease * 100) + "%)");
+      }
+
+      if (isGameOver) {
+        console.log("☠️ GAME OVER - Corruption reached 100% during throw");
+      }
+
       return {
         ...state,
-        phase: "throwing",
+        phase: isGameOver ? "menu" : "throwing",
         currentAttempts: newAttempts,
-        totalAttempts: state.totalAttempts + 1
+        totalAttempts: state.totalAttempts + 1,
+        scoring: newScoring,
+        corruption: newCorruption,
+        isGameOver
       };
     }
 
@@ -155,8 +236,14 @@ export function gameStateReducer(
       // Calculate scores if dice roll data provided
       let newScoring = state.scoring;
       if (action.diceRoll) {
-        const rollScores = calculateScores(action.diceRoll);
-        console.log("🎯 Calculated scores for roll:", rollScores);
+        // Pass previous scores and combo multiplier status for combo tracking
+        const rollScores = calculateScores(
+          action.diceRoll,
+          state.totalAttempts,
+          action.previousScores || state.scoring.currentScores,
+          action.comboMultiplierActive || false
+        );
+        console.log("🎯 Calculated scores for roll (attempt #" + state.totalAttempts + "):", rollScores);
 
         // Update current scores (best scores for this time period)
         const updatedCurrentScores = updateBestScores(
@@ -176,10 +263,17 @@ export function gameStateReducer(
         };
       }
 
+      // Update daily best score as sum of ALL achieved score buckets
+      const totalBucketScore = calculateTotalScore(newScoring.currentScores);
+      const newDailyBest = Math.max(state.dailyBestScore, totalBucketScore);
+
+      console.log("📊 Total bucket score:", totalBucketScore, "Daily best:", newDailyBest);
+
       return {
         ...state,
         phase: "settled",
-        scoring: newScoring
+        scoring: newScoring,
+        dailyBestScore: newDailyBest
       };
     }
 
@@ -208,28 +302,108 @@ export function gameStateReducer(
       // Check if we just completed a full day (night -> morning transition)
       const justCompletedDay = shouldAdvanceTime && state.timeOfDay === "night";
 
-      // Reset current scores when time period changes
-      let newScoring = state.scoring;
-      if (shouldAdvanceTime) {
-        newScoring = {
+      // Apply cigarette bonus if provided (adds to Highest Total based on corruption%)
+      let scoringAfterCigarette = state.scoring;
+      if (justCompletedDay && action.cigaretteBonus && action.cigaretteBonus > 0) {
+        const bonusAmount = action.cigaretteBonus; // Capture for type narrowing
+        const updatedScores = state.scoring.currentScores.map(score => {
+          if (score.category === "highest_total" && score.achieved) {
+            const bonusPoints = Math.floor(bonusAmount);
+            console.log(`🚬 Cigarette corruption bonus: +${bonusPoints} to Highest Total (${Math.floor(state.corruption * 100)}% corruption)`);
+            return {
+              ...score,
+              score: score.score + bonusPoints
+            };
+          }
+          return score;
+        });
+
+        scoringAfterCigarette = {
           ...state.scoring,
-          currentScores: initializeEmptyScores(),
-          currentTimeOfDay: newTimeState.timeOfDay as TimeOfDay
+          currentScores: updatedScores
         };
-        console.log(
-          "📊 Scores reset for new time period:",
-          newTimeState.timeOfDay
-        );
+      }
+
+      // Check if daily target was met and update corruption
+      let newCorruption = state.corruption;
+      let newDailyTarget = state.dailyTarget;
+      let newDailyBestScore = state.dailyBestScore;
+      let newIsGameOver = state.isGameOver;
+
+      if (justCompletedDay) {
+        const targetMet = state.dailyBestScore >= state.dailyTarget;
+
+        if (!targetMet) {
+          // Missed the daily target - no corruption change (already increasing per throw)
+          console.log(
+            "💀 Daily target MISSED! (" + state.dailyBestScore + " / " + state.dailyTarget + ")",
+            "Corruption remains at " + Math.floor(state.corruption * 100) + "%"
+          );
+
+          // Check for game over
+          if (state.corruption >= 1) {
+            newIsGameOver = true;
+            newCorruption = 1;
+            console.log("☠️ GAME OVER - Corruption reached 100%");
+          }
+        } else {
+          // Target met - decrease corruption based on % over goal
+          const percentOver = ((state.dailyBestScore - state.dailyTarget) / state.dailyTarget);
+          const corruptionDecrease = percentOver; // 100% over = -100% corruption, 50% over = -50%, etc.
+          newCorruption = Math.max(0, state.corruption - corruptionDecrease);
+
+          console.log(
+            "✨ Daily target MET! (" + state.dailyBestScore + " / " + state.dailyTarget + ")",
+            "Score " + Math.floor(percentOver * 100) + "% over target!",
+            "Corruption decreased from " + Math.floor(state.corruption * 100) + "% to " + Math.floor(newCorruption * 100) + "%"
+          );
+        }
+
+        // Set new target for the new day
+        newDailyTarget = calculateDailyTarget(newTimeState.daysMarked);
+        newDailyBestScore = 0; // Reset for new day
+        console.log("🎯 New daily target for day " + newTimeState.daysMarked + ": " + newDailyTarget);
+      }
+
+      // Handle scoring when time advances
+      let finalScoring = scoringAfterCigarette;
+      if (shouldAdvanceTime) {
+        if (justCompletedDay) {
+          // Reset scores immediately when starting a new day (night -> morning)
+          finalScoring = {
+            ...scoringAfterCigarette,
+            currentScores: initializeEmptyScores(),
+            currentTimeOfDay: newTimeState.timeOfDay as TimeOfDay
+          };
+          console.log(
+            "📊 New day! Scorecard reset for:",
+            newTimeState.timeOfDay
+          );
+        } else {
+          // Just changing time within the same day - keep scores
+          finalScoring = {
+            ...scoringAfterCigarette,
+            currentTimeOfDay: newTimeState.timeOfDay as TimeOfDay
+          };
+          console.log(
+            "📊 Time period changed to:",
+            newTimeState.timeOfDay
+          );
+        }
       }
 
       return {
         ...state,
-        phase: justCompletedDay ? "item_selection" : "idle",
+        phase: newIsGameOver ? "menu" : (justCompletedDay ? "item_selection" : "idle"),
         successfulRolls: newSuccesses,
         currentAttempts: 0, // Reset attempts after round completes
         totalSuccesses: state.totalSuccesses + 1,
         ...newTimeState,
-        scoring: newScoring
+        scoring: finalScoring,
+        dailyTarget: newDailyTarget,
+        dailyBestScore: newDailyBestScore,
+        corruption: newCorruption,
+        isGameOver: newIsGameOver
       };
     }
 
@@ -263,27 +437,85 @@ export function gameStateReducer(
         const justCompletedDay =
           shouldAdvanceTime && state.timeOfDay === "night";
 
-        // Reset current scores when time period changes
+        // Check if daily target was met and update corruption
+        let newCorruption = state.corruption;
+        let newDailyTarget = state.dailyTarget;
+        let newDailyBestScore = state.dailyBestScore;
+        let newIsGameOver = state.isGameOver;
+
+        if (justCompletedDay) {
+          const targetMet = state.dailyBestScore >= state.dailyTarget;
+
+          if (!targetMet) {
+            // Missed the daily target - no corruption change (already increasing per throw)
+            console.log(
+              "💀 Daily target MISSED! (" + state.dailyBestScore + " / " + state.dailyTarget + ")",
+              "Corruption remains at " + Math.floor(state.corruption * 100) + "%"
+            );
+
+            // Check for game over
+            if (state.corruption >= 1) {
+              newIsGameOver = true;
+              newCorruption = 1;
+              console.log("☠️ GAME OVER - Corruption reached 100%");
+            }
+          } else {
+            // Target met - decrease corruption based on % over goal
+            const percentOver = ((state.dailyBestScore - state.dailyTarget) / state.dailyTarget);
+            const corruptionDecrease = percentOver; // 100% over = -100% corruption, 50% over = -50%, etc.
+            newCorruption = Math.max(0, state.corruption - corruptionDecrease);
+
+            console.log(
+              "✨ Daily target MET! (" + state.dailyBestScore + " / " + state.dailyTarget + ")",
+              "Score " + Math.floor(percentOver * 100) + "% over target!",
+              "Corruption decreased from " + Math.floor(state.corruption * 100) + "% to " + Math.floor(newCorruption * 100) + "%"
+            );
+          }
+
+          // Set new target for the new day
+          newDailyTarget = calculateDailyTarget(newTimeState.daysMarked);
+          newDailyBestScore = 0; // Reset for new day
+          console.log("🎯 New daily target for day " + newTimeState.daysMarked + ": " + newDailyTarget);
+        }
+
+        // Handle scoring when time advances
         let newScoring = state.scoring;
         if (shouldAdvanceTime) {
-          newScoring = {
-            ...state.scoring,
-            currentScores: initializeEmptyScores(),
-            currentTimeOfDay: newTimeState.timeOfDay as TimeOfDay
-          };
-          console.log(
-            "📊 Scores reset for new time period:",
-            newTimeState.timeOfDay
-          );
+          if (justCompletedDay) {
+            // Reset scores immediately when starting a new day (night -> morning)
+            newScoring = {
+              ...state.scoring,
+              currentScores: initializeEmptyScores(),
+              currentTimeOfDay: newTimeState.timeOfDay as TimeOfDay
+            };
+            console.log(
+              "📊 New day! Scorecard reset for:",
+              newTimeState.timeOfDay
+            );
+          } else {
+            // Just changing time within the same day - keep scores
+            newScoring = {
+              ...state.scoring,
+              currentTimeOfDay: newTimeState.timeOfDay as TimeOfDay
+            };
+            console.log(
+              "📊 Time period changed to:",
+              newTimeState.timeOfDay
+            );
+          }
         }
 
         return {
           ...state,
-          phase: justCompletedDay ? "item_selection" : "idle",
+          phase: newIsGameOver ? "menu" : (justCompletedDay ? "item_selection" : "idle"),
           successfulRolls: newSuccesses,
           currentAttempts: 0, // Reset attempts for next round
           ...newTimeState,
-          scoring: newScoring
+          scoring: newScoring,
+          dailyTarget: newDailyTarget,
+          dailyBestScore: newDailyBestScore,
+          corruption: newCorruption,
+          isGameOver: newIsGameOver
         };
       } else {
         // Still have attempts left in this round
@@ -318,6 +550,8 @@ export function gameStateReducer(
     case "ITEM_SELECTED": {
       // Player selected an item, return to gameplay
       console.log("🎁 Item selected - returning to gameplay");
+
+      // Scores already reset when day changed (during SUCCESSFUL_ROLL/FAILED_ROLL)
       return {
         ...state,
         phase: "idle"

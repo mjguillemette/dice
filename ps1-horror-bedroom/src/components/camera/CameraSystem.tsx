@@ -248,7 +248,7 @@ export function CameraSystem({
             targetPos = new THREE.Vector3(0.28, 1.6, 1.2);
             break;
           case "item_selection":
-            targetPos = new THREE.Vector3(-2.1, 1.3, 3.3);
+            targetPos = new THREE.Vector3(-2.25, 1.45, 2.6);
             break;
           case "throwing":
             targetPos = new THREE.Vector3(0.28, 1.55, 1.6);
@@ -315,10 +315,10 @@ export function CameraSystem({
     <PerspectiveCamera
       ref={cameraRef}
       makeDefault
-      fov={45}
-      near={0.05}
-      far={40}
-      position={[0, 1.6, 5]}
+      fov={40}
+      near={0.2}
+      far={20}
+      position={[0, 1.5, 5]}
     />
   );
 }

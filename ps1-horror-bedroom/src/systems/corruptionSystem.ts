@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { CORRUPTION_SPEED } from '../constants/gameConfig';
 
@@ -10,14 +10,24 @@ export interface CorruptionState {
 
 /**
  * Custom hook to manage the corruption system
+ * Now accepts gameCorruption as a controlled value to sync visual corruption with game state
+ * @param gameCorruption - The corruption value from game state (0-1) that drives visual corruption
  * @returns Object containing corruption state and control functions
  */
-export function useCorruption() {
+export function useCorruption(gameCorruption?: number) {
   const [hellFactor, setHellFactor] = useState(0.0);
-  const [autoCorruption, setAutoCorruption] = useState(true);
+  const [autoCorruption, setAutoCorruption] = useState(false); // Default to false - game controls corruption
   const corruptionDirection = useRef(1);
 
-  // Auto-corruption update in animation loop
+  // Sync hellFactor with game corruption when provided
+  useEffect(() => {
+    if (gameCorruption !== undefined && !autoCorruption) {
+      // Smoothly interpolate to game corruption value
+      setHellFactor(gameCorruption);
+    }
+  }, [gameCorruption, autoCorruption]);
+
+  // Auto-corruption update in animation loop (for demo/dev mode only)
   useFrame(() => {
     if (autoCorruption) {
       setHellFactor((prev) => {

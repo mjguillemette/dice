@@ -89,7 +89,7 @@
 
 .balance-amount {
   font-weight: bold;
-  color: #ffff33; /* Use a highlight color like the 'settled' score */
+  color: #fade3e; /* Use a highlight color like the 'settled' score */
   text-shadow: 0 0 12px rgba(255, 255, 51, 0.8);
 }
 

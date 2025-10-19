@@ -26,7 +26,9 @@ export function ItemChoiceMenu({
   const rarityColors: Record<ItemDefinition["rarity"], string> = {
     common: "#999999",
     uncommon: "#4488FF",
-    rare: "#FFD700"
+    rare: "#FFD700",
+    epic: "#FF44FF",
+    legendary: "#FF0000"
   };
 
   return (

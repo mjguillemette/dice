@@ -194,7 +194,8 @@ export const FOG_CONFIG = {
   normalColor: 0x87ceeb,
   hellColor: 0x0a0000,
   near: 1,
-  far: 20
+  far: 20,
+  transitionSpeed: 1.5 // Speed of color transitions (0.5 = slow, 2.0 = fast)
 };
 
 // Time of day lighting configurations

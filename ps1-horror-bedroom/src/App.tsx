@@ -1,11 +1,13 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import Scene from "./components/Scene";
 import DevPanel from "./components/DevPanel";
 import Crosshair from "./components/ui/Crosshair";
 import GameHUD from "./components/ui/GameHUD";
 import { type DiceData } from "./components/ui/DiceInfo";
+import TableItemInfo, { type TableItemData } from "./components/ui/TableItemInfo";
 import { useWallet } from "./hooks/useWallet";
+import { usePersistence } from "./hooks/usePersistence";
 import { GameStateProvider, useGameState } from "./contexts/GameStateContext";
 import {
   type PlayerInventory,
@@ -13,7 +15,10 @@ import {
   generateItemChoices,
   applyItemToInventory,
   type ItemDefinition,
-  generateStoreChoices
+  generateStoreChoices,
+  getItemPrice,
+  isConsumableActive,
+  activateConsumable
 } from "./systems/itemSystem";
 import "./App.css";
 
@@ -30,38 +35,56 @@ function AppContent() {
 
   const [cameraName, setCameraName] = useState("First Person");
   const [cinematicMode, setCinematicMode] = useState(false);
+  // Visual corruption state (hellFactor) - now driven by gameState.corruption in Scene
   const [hellFactor, setHellFactor] = useState(0);
-  const [autoCorruption, setAutoCorruption] = useState(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_autoCorruption, _setAutoCorruption] = useState(false); // Unused - kept for future feature
   const [diceCount, setDiceCount] = useState(2);
   const [coinCount, setCoinCount] = useState(1);
+  const [nickelCount, setNickelCount] = useState(0);
   const [d3Count, setD3Count] = useState(0);
   const [d4Count, setD4Count] = useState(0);
   const [thumbTackCount, setThumbTackCount] = useState(2);
   const [diceScore, setDiceScore] = useState(0);
-  const [diceShaderEnabled, setDiceShaderEnabled] = useState(true);
+  const [diceShaderEnabled, _setDiceShaderEnabled] = useState(true);
   const [towerCardEnabled, setTowerCardEnabled] = useState(false);
   const [sunCardEnabled, setSunCardEnabled] = useState(false);
-  const [diceOnTowerCard, setDiceOnTowerCard] = useState<number[]>([]);
-  const [diceOnSunCard, setDiceOnSunCard] = useState<number[]>([]);
-  const [showCardDebugBounds, setShowCardDebugBounds] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_diceOnTowerCard, setDiceOnTowerCard] = useState<number[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_diceOnSunCard, setDiceOnSunCard] = useState<number[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_showCardDebugBounds, _setShowCardDebugBounds] = useState(false);
   const [rollHistory, setRollHistory] = useState<number[]>([]);
   const [diceSettled, setDiceSettled] = useState(false);
   const [hoveredDice, setHoveredDice] = useState<DiceData | null>(null);
+  const [hoveredTableItem, setHoveredTableItem] = useState<TableItemData | null>(null);
+  const [highlightedDiceIds, setHighlightedDiceIds] = useState<number[]>([]);
+  const [isCursorLocked, setIsCursorLocked] = useState(false);
 
-  const [spotlightHeight, setSpotlightHeight] = useState(1.0);
-  const [spotlightIntensity, setSpotlightIntensity] = useState(1.4);
-  const [spotlightAngle, setSpotlightAngle] = useState(Math.PI / 6);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_spotlightHeight, _setSpotlightHeight] = useState(1.0);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_spotlightIntensity, _setSpotlightIntensity] = useState(1.4);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_spotlightAngle, _setSpotlightAngle] = useState(Math.PI / 6);
 
-  const { balances, addCurrency, spendCurrency } = useWallet({ cents: 55 });
+  const { balances, addCurrency, spendCurrency, resetWallet } = useWallet({ cents: 55 });
+  const { data: persistentData, recordGameOver, recordGameStart } = usePersistence();
 
   const [inventory, setInventory] =
     useState<PlayerInventory>(INITIAL_INVENTORY);
+
+  // Wrap onAttempt to pass corruption per roll from inventory
+  const handleAttempt = useCallback(() => {
+    onAttempt(inventory.stats.corruptionPerRoll);
+  }, [onAttempt, inventory.stats.corruptionPerRoll]);
   const [itemChoices, setItemChoices] = useState<ItemDefinition[]>([]);
   const [storeChoices, setStoreChoices] = useState<ItemDefinition[]>([]);
 
   const handleDieSettledForCurrency = useCallback(
     (type: string, amount: number) => {
-      if (type === "coin") {
+      if (type === "coin" || type === "nickel") {
         addCurrency("cents", amount);
       }
     },
@@ -75,23 +98,24 @@ function AppContent() {
 
   const handlePurchase = useCallback(
     (item: ItemDefinition) => {
-      if (item.price === undefined) {
-        console.log("Purchase failed: Item price is undefined.");
+      const price = getItemPrice(item);
+      if (price === 0) {
+        console.log("Purchase failed: Item has no price.");
         return;
       }
 
-      if (spendCurrency("cents", item.price)) {
-        console.log("Purchase successful!");
+      if (spendCurrency("cents", price)) {
+        console.log("Purchase successful! Paid", price, "cents for", item.name);
 
         const newInventory = applyItemToInventory(inventory, item);
         setInventory(newInventory);
         onItemSelected();
         return newInventory;
       } else {
-        console.log("Purchase failed: Insufficient funds.");
+        console.log("Purchase failed: Insufficient funds. Need", price, "cents, have", balances.cents);
       }
     },
-    [spendCurrency, setInventory, inventory, onItemSelected]
+    [spendCurrency, setInventory, inventory, onItemSelected, balances.cents]
   );
 
   const handleSuccessfulRoll = useCallback(() => {
@@ -100,8 +124,14 @@ function AppContent() {
     }
     setDiceScore(0);
     setDiceSettled(false);
-    onSuccessfulRoll();
-  }, [diceScore, onSuccessfulRoll]);
+
+    // Calculate cigarette bonus if cigarette passive is active
+    const cigaretteBonus = inventory.passiveEffects.cigarette
+      ? gameState.corruption * 100
+      : undefined;
+
+    onSuccessfulRoll(cigaretteBonus);
+  }, [diceScore, onSuccessfulRoll, inventory.passiveEffects.cigarette, gameState.corruption]);
 
   const handleFailedRoll = useCallback(() => {
     setRollHistory((prev) => [...prev, diceScore]);
@@ -111,11 +141,48 @@ function AppContent() {
   }, [diceScore, onFailedRoll]);
 
   const handleDiceSettled = useCallback(
-    (diceValues?: number[]) => {
+    (diceValues?: number[], diceIds?: number[], scoreMultipliers?: number[]) => {
       setDiceSettled(true);
-      onDiceSettled(diceValues);
+      // Pass combo multiplier status if incense is active
+      const incenseActive = isConsumableActive(inventory, "incense");
+      const previousScores = incenseActive ? gameState.scoring.currentScores : undefined;
+      onDiceSettled(diceValues, diceIds, scoreMultipliers, incenseActive, previousScores);
     },
-    [onDiceSettled]
+    [onDiceSettled, inventory, gameState.scoring.currentScores]
+  );
+
+  const handleTableItemHover = useCallback(
+    (itemId: "cigarette" | "incense" | null) => {
+      if (!itemId) {
+        setHoveredTableItem(null);
+        return;
+      }
+
+      const itemData: TableItemData = {
+        itemId,
+        name: itemId === "cigarette" ? "Cigarette" : "Incense Stick",
+        description: itemId === "cigarette"
+          ? "Passive: +1% corruption per roll. Adds +1 to Highest Total per 1% corruption at end of day."
+          : "Consumable (3 uses): Score categories triggered back-to-back gain +15% per consecutive combo.",
+        position: { x: window.innerWidth / 2, y: window.innerHeight / 2 }
+      };
+
+      // Calculate impacts
+      if (itemId === "cigarette") {
+        const corruptionPercent = Math.floor(gameState.corruption * 100);
+        itemData.thisRoundImpact = `+${corruptionPercent} to Highest Total at end of day`;
+        itemData.totalImpact = `${corruptionPercent}% total corruption accumulated`;
+      } else if (itemId === "incense") {
+        const incenseData = inventory.consumables.find(c => c.itemId === "incense");
+        const remainingUses = incenseData?.remainingUses || 0;
+        const isActive = incenseData?.isActive || false;
+        itemData.thisRoundImpact = isActive ? "Active - Combo bonuses enabled" : "Inactive";
+        itemData.totalImpact = `${remainingUses} use${remainingUses !== 1 ? 's' : ''} remaining`;
+      }
+
+      setHoveredTableItem(itemData);
+    },
+    [gameState.corruption, inventory.consumables]
   );
 
   const handleItemSelected = useCallback(
@@ -130,27 +197,99 @@ function AppContent() {
 
   // Generate store choices once on mount
   useEffect(() => {
-    const generatedStoreChoices = generateStoreChoices(5);
+    const generatedStoreChoices = generateStoreChoices(inventory, gameState.daysMarked, 5);
     setStoreChoices(generatedStoreChoices);
   }, []); // Empty dependency - only run once
 
   // Generate item choices when entering item_selection phase
   useEffect(() => {
     if (gameState.phase === "item_selection" && itemChoices.length === 0) {
-      const choices = generateItemChoices(inventory, 3);
+      const choices = generateItemChoices(inventory, gameState.daysMarked, 3);
       setItemChoices(choices);
+      console.log("🎁 Showing item selection:", choices);
     }
-  }, [gameState.phase, inventory, itemChoices.length]);
+  }, [gameState.phase, inventory, itemChoices.length, gameState.daysMarked]);
 
   useEffect(() => {
     setDiceCount(inventory.dice.d6);
     setCoinCount(inventory.dice.coins);
+    setNickelCount(inventory.dice.nickels);
     setThumbTackCount(inventory.dice.thumbtacks);
     setD3Count(inventory.dice.d3);
     setD4Count(inventory.dice.d4);
+    // TODO: Set new dice type counts when implementing physics
     setTowerCardEnabled(inventory.cards.tower);
     setSunCardEnabled(inventory.cards.sun);
   }, [inventory]);
+
+  // Auto-activate incense when first combo occurs
+  useEffect(() => {
+    // Check if player has incense
+    const incenseData = inventory.consumables.find(c => c.itemId === "incense");
+    if (!incenseData) return;
+
+    // Don't activate if already active or no uses remaining
+    if (incenseData.isActive || incenseData.remainingUses === 0) return;
+
+    // Check if any category has a combo (comboCount > 0)
+    const hasCombo = gameState.scoring.currentScores.some(
+      score => score.comboCount && score.comboCount > 0
+    );
+
+    if (hasCombo) {
+      console.log("🔥 First combo detected! Auto-activating incense...");
+      const newInventory = activateConsumable(inventory, "incense");
+      setInventory(newInventory);
+    }
+  }, [gameState.scoring.currentScores, inventory]);
+
+  // Record game over to persistent storage
+  useEffect(() => {
+    if (gameState.isGameOver) {
+      const daysSurvived = gameState.daysMarked - 1; // Subtract 1 because we mark the start of each day
+      const totalScore = gameState.scoring.currentScores.reduce((sum, score) => sum + score.score, 0);
+      recordGameOver(daysSurvived, totalScore);
+      console.log(`💀 Game Over! Days survived: ${daysSurvived}, Total score: ${totalScore}`);
+      console.log(`📊 Best days survived: ${persistentData.bestDaysSurvived}, Best score: ${persistentData.bestTotalScore}`);
+    }
+  }, [gameState.isGameOver, gameState.daysMarked, gameState.scoring.currentScores, recordGameOver, persistentData.bestDaysSurvived, persistentData.bestTotalScore]);
+
+  // Record game start when phase changes from menu to idle
+  const previousPhaseRef = useRef(gameState.phase);
+  useEffect(() => {
+    if (previousPhaseRef.current === "menu" && gameState.phase === "idle") {
+      recordGameStart();
+      console.log("🎮 Game started!");
+    }
+    previousPhaseRef.current = gameState.phase;
+  }, [gameState.phase, recordGameStart]);
+
+  // Reset inventory, wallet, and other state when game restarts after game over
+  const wasGameOverRef = useRef(false);
+  useEffect(() => {
+    // Track if we were in game over state
+    if (gameState.isGameOver) {
+      wasGameOverRef.current = true;
+    }
+
+    // Detect when game resets: WAS game over, NOW back to idle at day 2
+    if (wasGameOverRef.current && !gameState.isGameOver && gameState.phase === "idle" && gameState.daysMarked === 2) {
+      // Full reset detected
+      console.log("🔄 Full game reset detected - clearing inventory and wallet");
+      setInventory(INITIAL_INVENTORY);
+      resetWallet();
+      setItemChoices([]);
+      setDiceScore(0);
+      setDiceSettled(false);
+      setRollHistory([]);
+      wasGameOverRef.current = false; // Clear the flag
+
+      // Regenerate store after reset
+      const generatedStoreChoices = generateStoreChoices(INITIAL_INVENTORY, 1, 5);
+      setStoreChoices(generatedStoreChoices);
+      console.log("🏪 Regenerated store choices:", generatedStoreChoices);
+    }
+  }, [gameState.isGameOver, gameState.phase, gameState.daysMarked, resetWallet]);
 
   return (
     <div
@@ -163,7 +302,7 @@ function AppContent() {
       }}
     >
       {/* 2D UI Components are rendered here, outside of the Canvas */}
-      {gameState.phase === "menu" && (
+      {gameState.phase === "menu" && !gameState.isGameOver && (
         <div
           className="menu-overlay"
           style={{
@@ -195,6 +334,96 @@ function AppContent() {
         </div>
       )}
 
+      {/* Game Over Screen */}
+      {gameState.isGameOver && (
+        <div
+          className="game-over-overlay"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(20, 19, 26, 0.95)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column",
+            color: "var(--bw-taffy)",
+            textAlign: "center",
+            fontFamily: "monospace",
+            zIndex: 1000,
+            cursor: "pointer",
+            animation: "fadeIn 1s ease-in"
+          }}
+          onClick={onStartGame}
+          onTouchStart={onStartGame}
+        >
+          <h2 style={{
+            fontSize: "2rem",
+            marginBottom: "1rem",
+            color: "var(--bw-dress)"
+          }}>
+            GAME OVER
+          </h2>
+          <p style={{
+            fontSize: "1.2rem",
+            opacity: 0.8,
+            marginBottom: "0.5rem",
+            color: "var(--bw-plain)"
+          }}>
+            You survived {gameState.daysMarked - 1} days
+          </p>
+          {persistentData.bestDaysSurvived > 0 && (
+            <p style={{
+              fontSize: "1rem",
+              opacity: 0.7,
+              marginTop: "0.5rem",
+              color: "var(--bw-lightgravel)"
+            }}>
+              Best: {persistentData.bestDaysSurvived} days
+            </p>
+          )}
+          <p style={{
+            fontSize: "1rem",
+            opacity: 0.6,
+            marginTop: "2rem",
+            color: "var(--bw-lightgravel)"
+          }}>
+            Press Enter to try again
+          </p>
+        </div>
+      )}
+
+      {/* Cursor Unlock Overlay - shown when cursor is not locked during gameplay */}
+      {!isCursorLocked && gameState.phase !== "menu" && !gameState.isGameOver && (
+        <div
+          className="cursor-unlock-overlay"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column",
+            color: "white",
+            textAlign: "center",
+            fontFamily: "monospace",
+            zIndex: 100,
+            pointerEvents: "none"
+          }}
+        >
+          <h2 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>
+            Paused
+          </h2>
+          <p style={{ opacity: 0.8 }}>Press Enter to continue</p>
+        </div>
+      )}
+
       {gameState.phase !== "menu" && !cinematicMode && <Crosshair />}
       {gameState.phase !== "menu" && (
         <GameHUD
@@ -206,8 +435,18 @@ function AppContent() {
           isSettled={diceSettled}
           balance={balances.cents}
           hoveredDice={hoveredDice}
+          onScoreHover={(diceIds) => setHighlightedDiceIds(diceIds || [])}
+          totalAttempts={gameState.totalAttempts}
+          dailyTarget={gameState.dailyTarget}
+          dailyBestScore={gameState.dailyBestScore}
+          corruption={gameState.corruption}
+          successfulRolls={gameState.successfulRolls}
+          daysMarked={gameState.daysMarked}
         />
       )}
+
+      {/* Table Item Tooltip - shown when hovering cigarette or incense */}
+      <TableItemInfo itemData={hoveredTableItem} />
 
       {/* The Canvas is ONLY for 3D components */}
       <Canvas
@@ -224,9 +463,11 @@ function AppContent() {
         <Scene
           onCameraNameChange={setCameraName}
           onHellFactorChange={setHellFactor}
-          onAutoCorruptionChange={setAutoCorruption}
+          onAutoCorruptionChange={_setAutoCorruption}
+          onCursorLockChange={setIsCursorLocked}
           diceCount={diceCount}
           coinCount={coinCount}
+          nickelCount={nickelCount}
           d3Count={d3Count}
           d4Count={d4Count}
           thumbTackCount={thumbTackCount}
@@ -236,19 +477,19 @@ function AppContent() {
           sunCardEnabled={sunCardEnabled}
           onTowerCardItemsChange={setDiceOnTowerCard}
           onSunCardItemsChange={setDiceOnSunCard}
-          showCardDebugBounds={showCardDebugBounds}
-          spotlightHeight={spotlightHeight}
-          spotlightIntensity={spotlightIntensity}
-          spotlightAngle={spotlightAngle}
+          showCardDebugBounds={_showCardDebugBounds}
+          spotlightHeight={_spotlightHeight}
+          spotlightIntensity={_spotlightIntensity}
+          spotlightAngle={_spotlightAngle}
           onSuccessfulRoll={handleSuccessfulRoll}
           onFailedRoll={handleFailedRoll}
-          onAttempt={onAttempt}
+          onAttempt={handleAttempt}
           onDiceSettled={handleDiceSettled}
           daysMarked={gameState.daysMarked}
           currentAttempts={gameState.currentAttempts}
           timeOfDay={gameState.timeOfDay}
           successfulRolls={gameState.successfulRolls}
-          itemChoices={gameState.phase === "item_selection" ? itemChoices : []}
+          itemChoices={itemChoices.length > 0 ? itemChoices : []}
           storeChoices={storeChoices || []}
           onItemSelected={handleItemSelected}
           isStoreOpen={true}
@@ -258,8 +499,11 @@ function AppContent() {
           spendCurrency={spendCurrency}
           playerBalance={balances.cents}
           gameState={gameState}
+          inventory={inventory}
           onStartGame={onStartGame}
           onDiceHover={setHoveredDice}
+          onTableItemHover={handleTableItemHover}
+          highlightedDiceIds={highlightedDiceIds}
         />
       </Canvas>
 
@@ -267,40 +511,12 @@ function AppContent() {
         cameraName={cameraName}
         cinematicMode={cinematicMode}
         hellFactor={hellFactor}
-        autoCorruption={autoCorruption}
-        diceCount={diceCount}
-        coinCount={coinCount}
-        d3Count={d3Count}
-        d4Count={d4Count}
-        thumbTackCount={thumbTackCount}
         diceScore={diceScore}
-        diceShaderEnabled={diceShaderEnabled}
-        towerCardEnabled={towerCardEnabled}
-        sunCardEnabled={sunCardEnabled}
-        diceOnTowerCard={diceOnTowerCard}
-        diceOnSunCard={diceOnSunCard}
-        showCardDebugBounds={showCardDebugBounds}
-        spotlightHeight={spotlightHeight}
-        spotlightIntensity={spotlightIntensity}
-        spotlightAngle={spotlightAngle}
         timeOfDay={gameState.timeOfDay}
         daysMarked={gameState.daysMarked}
         successfulRolls={gameState.successfulRolls}
         currentAttempts={gameState.currentAttempts}
         gamePhase={gameState.phase}
-        onDiceCountChange={setDiceCount}
-        onCoinCountChange={setCoinCount}
-        onD3CountChange={setD3Count}
-        onD4CountChange={setD4Count}
-        onThumbTackCountChange={setThumbTackCount}
-        onDiceShaderToggle={() => setDiceShaderEnabled(!diceShaderEnabled)}
-        onTowerCardToggle={() => setTowerCardEnabled(!towerCardEnabled)}
-        onSunCardToggle={() => setSunCardEnabled(!sunCardEnabled)}
-        onCardDebugToggle={() => setShowCardDebugBounds(!showCardDebugBounds)}
-        onSpotlightHeightChange={setSpotlightHeight}
-        onSpotlightIntensityChange={setSpotlightIntensity}
-        onSpotlightAngleChange={setSpotlightAngle}
-        onTestSuccessfulRoll={handleSuccessfulRoll}
         onCinematicModeToggle={() => setCinematicMode(!cinematicMode)}
       />
     </div>

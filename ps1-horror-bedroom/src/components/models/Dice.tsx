@@ -169,9 +169,10 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
     useEffect(() => {
       if (meshRef.current && settled) {
         // Use the pre-calculated score from DiceManager if available, otherwise calculate base score
-        const scoreValue = calculatedScore !== undefined
-          ? calculatedScore
-          : Math.round(diceValue * scoreMultiplier);
+        const scoreValue =
+          calculatedScore !== undefined
+            ? calculatedScore
+            : Math.round(diceValue * scoreMultiplier);
 
         meshRef.current.userData = {
           isDice: true,
@@ -182,7 +183,15 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
           modifiers: transformations
         };
       }
-    }, [settled, diceId, diceType, diceValue, transformations, scoreMultiplier, calculatedScore]);
+    }, [
+      settled,
+      diceId,
+      diceType,
+      diceValue,
+      transformations,
+      scoreMultiplier,
+      calculatedScore
+    ]);
 
     // Check if dice has settled
     useFrame(() => {
@@ -284,13 +293,25 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
         return 1;
       }
 
-      // For coins (2-sided), check if top or bottom is up
+      // For coins (2-sided), check if top or bottom is up, or if on edge
       if (maxValue === 2) {
         const upVector = new THREE.Vector3(0, 1, 0);
         const topNormal = new THREE.Vector3(0, 1, 0).applyQuaternion(
           quaternion
         );
         const dot = topNormal.dot(upVector);
+
+        // Check if coin is on its edge (side)
+        // When on edge, the dot product will be close to 0 (perpendicular to up vector)
+        const edgeThreshold = 0.3; // Tolerance for edge detection
+        const absD = Math.abs(dot);
+
+        if (absD < edgeThreshold) {
+          // Coin is on its edge! Special 10x bonus value
+          console.log("🪙 COIN LANDED ON EDGE! 10x multiplier activated!");
+          return 10; // Special value indicating edge landing
+        }
+
         return dot > 0 ? 1 : 2; // Heads or tails
       }
 
@@ -611,7 +632,8 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
       }
     };
 
-    const OUTLINE_THICKNESS = 1.15;
+    const OUTLINE_THICKNESS = 1.25;
+    const isOutlineVisible = isHovered && settled;
 
     return (
       <RigidBody
@@ -631,13 +653,40 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
         {renderCollider()}
 
         {/* Outline mesh - only visible when hovered */}
-        {isHovered && settled && (
-          <mesh
-            scale={[animatedScale * OUTLINE_THICKNESS, animatedScale * OUTLINE_THICKNESS, animatedScale * OUTLINE_THICKNESS]}
-          >
-            {renderGeometry()}
-            <meshBasicMaterial color={0xffa500} side={THREE.BackSide} />
-          </mesh>
+        {isOutlineVisible && (
+          <>
+            <mesh
+              renderOrder={9999}
+              scale={[
+                animatedScale * OUTLINE_THICKNESS,
+                animatedScale * OUTLINE_THICKNESS,
+                animatedScale * OUTLINE_THICKNESS
+              ]}
+            >
+              {renderGeometry()}
+              <meshBasicMaterial
+                color={0xffa724}
+                side={THREE.BackSide}
+                opacity={.4}
+                depthTest={false} // 👈 ignores depth buffer
+              />
+            </mesh>
+            <mesh
+              renderOrder={10000}
+              scale={[
+                animatedScale * OUTLINE_THICKNESS - 0.075,
+                animatedScale * OUTLINE_THICKNESS - 0.15,
+                animatedScale * OUTLINE_THICKNESS - 0.175
+              ]}
+            >
+              {renderGeometry()}
+              <meshBasicMaterial
+                color={0x35322d}
+                side={THREE.BackSide}
+                depthTest={false} // 👈 ensures always on top
+              />
+            </mesh>
+          </>
         )}
 
         <mesh
@@ -645,6 +694,7 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
           castShadow
           receiveShadow
           material={materials}
+          renderOrder={isOutlineVisible ? 10001 : undefined} // Render above outline if visible
           scale={[animatedScale, animatedScale, animatedScale]} // Apply smooth animated scaling
         >
           {renderGeometry()}

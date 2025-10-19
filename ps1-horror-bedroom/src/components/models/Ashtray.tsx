@@ -6,9 +6,10 @@ import { BUREAU } from '../../constants/modelPositions';
 
 interface AshtrayProps {
   hellFactor: number;
+  cigaretteCount?: number; // Number of cigarettes acquired (butts to show)
 }
 
-function AshtrayContent({ hellFactor }: AshtrayProps) {
+function AshtrayContent({ hellFactor, cigaretteCount = 0 }: AshtrayProps) {
   // Ashtray base - ceramic/glass material
   const ashtrayMaterial = useCorruptionMaterial({
     normalColor: 0x8b8680, // Grayish ceramic
@@ -160,15 +161,26 @@ function AshtrayContent({ hellFactor }: AshtrayProps) {
         <cylinderGeometry args={[0.06, 0.08, 0.02, 8]} />
       </mesh>
 
-      {/* Cigarette butt(s) in ash - laid flat */}
-      <mesh position={[-0.04, 0.005, -0.03]} rotation={[0, 0, Math.PI / 3]} material={cigaretteMaterial}>
-        <cylinderGeometry args={[0.008, 0.008, 0.04, 6]} />
-      </mesh>
+      {/* Dynamic cigarette butts based on cigarette count */}
+      {Array.from({ length: Math.min(cigaretteCount, 20) }).map((_, index) => {
+        // Arrange butts in a circular pattern within the ashtray
+        const angle = (index / 20) * Math.PI * 2;
+        const radius = 0.05 + (index % 3) * 0.02; // Vary radius for stacking effect
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+        const rotation = angle + (Math.random() - 0.5) * 0.5; // Random rotation variation
 
-      {/* Another old cigarette butt - laid flat at different angle */}
-      <mesh position={[0.02, 0.005, 0.04]} rotation={[0, 0, -Math.PI / 4]} material={ashMaterial}>
-        <cylinderGeometry args={[0.008, 0.008, 0.03, 6]} />
-      </mesh>
+        return (
+          <mesh
+            key={index}
+            position={[x, 0.005, z]}
+            rotation={[0, 0, rotation]}
+            material={index % 2 === 0 ? cigaretteMaterial : ashMaterial}
+          >
+            <cylinderGeometry args={[0.008, 0.008, 0.03 + Math.random() * 0.01, 6]} />
+          </mesh>
+        );
+      })}
 
       {/* Green glow texture in center - appears at very high corruption */}
       {greenGlowMaterial && (

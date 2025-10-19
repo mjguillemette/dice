@@ -25,14 +25,22 @@ import Decorations from "./models/Decorations";
 import Ashtray from "./models/Ashtray";
 import BoardGame from "./models/BoardGame";
 import DiceReceptacle from "./models/DiceReceptacle";
+import { DiceTrayBoundsDebug } from "./models/DiceTrayBoundsDebug";
 import Card from "./models/Card";
 import Hourglass from "./models/Hourglass";
 import House from "./house/House";
 import DiceManager, { type DiceManagerHandle } from "./models/DiceManager";
 import ItemChoice from "./models/ItemChoice";
+import Cigarette from "./models/Cigarette";
+import IncenseStick from "./models/IncenseStick";
 import { useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { type ItemDefinition } from "../systems/itemSystem";
+import {
+  type ItemDefinition,
+  type PlayerInventory,
+  getItemPrice,
+  isConsumableActive
+} from "../systems/itemSystem";
 import { type GameState } from "../systems/gameStateSystem";
 // import DiceInfo from "./ui/DiceInfo";
 
@@ -41,8 +49,10 @@ interface SceneProps {
   // onCameraModeChange: (cinematicMode: boolean) => void;
   onHellFactorChange: (hellFactor: number) => void;
   onAutoCorruptionChange: (autoCorruption: boolean) => void;
+  onCursorLockChange?: (isLocked: boolean) => void;
   diceCount: number;
   coinCount: number;
+  nickelCount: number;
   d3Count: number;
   d4Count: number;
   thumbTackCount: number;
@@ -59,7 +69,11 @@ interface SceneProps {
   onSuccessfulRoll: () => void;
   onFailedRoll: () => void;
   onAttempt: () => void;
-  onDiceSettled: (diceValues?: number[]) => void;
+  onDiceSettled: (
+    diceValues?: number[],
+    diceIds?: number[],
+    scoreMultipliers?: number[]
+  ) => void;
   daysMarked: number;
   currentAttempts: number; // Needed to know if round is complete after failed roll
   timeOfDay: TimeOfDay;
@@ -74,6 +88,7 @@ interface SceneProps {
   onCloseStore: () => void;
   spendCurrency: (type: string, amount: number) => boolean;
   gameState: GameState;
+  inventory: PlayerInventory;
   onStartGame: () => void;
   onDiceHover: (
     diceData: {
@@ -85,14 +100,18 @@ interface SceneProps {
       position: { x: number; y: number };
     } | null
   ) => void;
+  onTableItemHover?: (itemId: "cigarette" | "incense" | null) => void;
+  highlightedDiceIds: number[]; // NEW: Dice IDs to highlight from scorecard hover
 }
 export function Scene({
   onCameraNameChange,
   // onCameraModeChange,
   onHellFactorChange,
   onAutoCorruptionChange,
+  onCursorLockChange,
   diceCount,
   coinCount,
+  nickelCount,
   d3Count,
   d4Count,
   thumbTackCount,
@@ -120,8 +139,11 @@ export function Scene({
   storeChoices,
   spendCurrency,
   gameState,
+  inventory,
   onStartGame,
-  onDiceHover
+  onDiceHover,
+  onTableItemHover,
+  highlightedDiceIds
 }: SceneProps) {
   const { scene, camera, gl } = useThree();
   const { returnToMenu } = useGameState();
@@ -161,6 +183,79 @@ export function Scene({
   // Track locally to pass to DiceManager for highlighting
   const [hoveredDiceId, setHoveredDiceId] = useState<number | null>(null);
 
+  // Track cursor lock state
+  const [isCursorLocked, setIsCursorLocked] = useState(false);
+
+  // Debug: Log when cigarette/incense should be visible
+  useEffect(() => {
+    console.log("🚬 Cigarette visible:", inventory.passiveEffects.cigarette);
+    console.log(
+      "🔥 Incense in inventory:",
+      inventory.consumables.find((c) => c.itemId === "incense")
+    );
+    console.log("📍 Receptacle position:", RECEPTACLE_POSITION);
+  }, [inventory.passiveEffects.cigarette, inventory.consumables]);
+
+  // Listen for pointer lock changes
+  useEffect(() => {
+    const handlePointerLockChange = () => {
+      const locked = !!document.pointerLockElement;
+      setIsCursorLocked(locked);
+      onCursorLockChange?.(locked);
+      console.log("🔒 Cursor lock changed:", locked);
+    };
+
+    document.addEventListener("pointerlockchange", handlePointerLockChange);
+    document.addEventListener("mozpointerlockchange", handlePointerLockChange);
+    document.addEventListener(
+      "webkitpointerlockchange",
+      handlePointerLockChange
+    );
+
+    return () => {
+      document.removeEventListener(
+        "pointerlockchange",
+        handlePointerLockChange
+      );
+      document.removeEventListener(
+        "mozpointerlockchange",
+        handlePointerLockChange
+      );
+      document.removeEventListener(
+        "webkitpointerlockchange",
+        handlePointerLockChange
+      );
+    };
+  }, [onCursorLockChange]);
+
+  // Handle Enter key to lock cursor when unlocked (without resetting game)
+  useEffect(() => {
+    const handleEnterKey = (e: KeyboardEvent) => {
+      // Only handle Enter when cursor is unlocked and not in menu/game over
+      if (
+        e.code === "Enter" &&
+        !isCursorLocked &&
+        gameState.phase !== "menu" &&
+        !gameState.isGameOver
+      ) {
+        e.preventDefault();
+        document.body.requestPointerLock();
+      }
+    };
+
+    document.addEventListener("keydown", handleEnterKey);
+    return () => document.removeEventListener("keydown", handleEnterKey);
+  }, [isCursorLocked, gameState.phase, gameState.isGameOver]);
+
+  // Reset dice when game resets after game over
+  useEffect(() => {
+    // Detect fresh game start: phase is idle and day is 2 (start of new game)
+    if (gameState.phase === "idle" && gameState.daysMarked === 2 && diceManagerRef.current) {
+      console.log("🎲 Game reset detected - clearing all dice");
+      diceManagerRef.current.resetDice();
+    }
+  }, [gameState.phase, gameState.daysMarked]);
+
   console.log("Store choices:", storeChoices);
 
   // // Throw charge mechanics
@@ -169,13 +264,14 @@ export function Scene({
   // const chargeStartTime = useRef<number>(0);
   // const MAX_CHARGE_TIME = 1500; // 1.5 seconds max charge
 
+  // Use the corruption hook with game state corruption as the controlling value
   const {
     hellFactor,
     autoCorruption,
     increaseCorruption,
     decreaseCorruption,
     toggleAutoCorruption
-  } = useCorruption();
+  } = useCorruption(gameState.corruption);
 
   // Update parent component with hellFactor changes
   useEffect(() => {
@@ -252,7 +348,11 @@ export function Scene({
   // Disable mouse look during menu OR during the initial starting transition
   useMouseLook(handleMouseMove, gameState.phase !== "menu" && !isStarting);
 
-  // Update fog and background based on time of day AND corruption
+  // Track smooth fog color transitions
+  const targetFogColorRef = useRef<THREE.Color>(new THREE.Color(TIME_OF_DAY_CONFIG[timeOfDay].fogColor));
+  const currentFogColorRef = useRef<THREE.Color>(new THREE.Color(TIME_OF_DAY_CONFIG[timeOfDay].fogColor));
+
+  // Update target fog color when time of day or corruption changes
   useEffect(() => {
     // Calculate time progress (0-1) toward next time period
     const timeProgress = getTimeProgressRatio(successfulRolls);
@@ -284,20 +384,32 @@ export function Scene({
     );
 
     // Then blend with corruption/hell color
-    const fogColor = normalFogColor
+    const targetColor = normalFogColor
       .clone()
       .lerp(new THREE.Color(FOG_CONFIG.hellColor), hellFactor);
 
-    console.log("🎨 Final fog color:", `#${fogColor.getHexString()}`);
+    console.log("🎨 Target fog color:", `#${targetColor.getHexString()}`);
 
+    // Update target - the animation will happen in useFrame
+    targetFogColorRef.current = targetColor;
+  }, [hellFactor, timeOfDay, successfulRolls]);
+
+  // Smoothly animate fog color toward target
+  useFrame((_state, delta) => {
+    // Lerp current color toward target color using configured speed
+    const lerpAmount = Math.min(delta * FOG_CONFIG.transitionSpeed, 1.0);
+
+    currentFogColorRef.current.lerp(targetFogColorRef.current, lerpAmount);
+
+    // Apply to scene
     if (scene.fog) {
-      (scene.fog as THREE.Fog).color = fogColor;
+      (scene.fog as THREE.Fog).color.copy(currentFogColorRef.current);
     } else {
-      scene.fog = new THREE.Fog(fogColor, FOG_CONFIG.near, FOG_CONFIG.far);
+      scene.fog = new THREE.Fog(currentFogColorRef.current, FOG_CONFIG.near, FOG_CONFIG.far);
     }
 
-    scene.background = fogColor;
-  }, [scene, hellFactor, timeOfDay, successfulRolls]);
+    scene.background = currentFogColorRef.current;
+  });
 
   useEffect(() => {
     cameraRef.current = camera;
@@ -310,12 +422,13 @@ export function Scene({
       diceManagerRef.current.updateDicePool({
         d6: diceCount,
         coins: coinCount,
+        nickels: nickelCount,
         d3: d3Count,
         d4: d4Count,
         thumbtacks: thumbTackCount
       });
     }
-  }, [diceCount, coinCount, d3Count, d4Count, thumbTackCount]);
+  }, [diceCount, coinCount, nickelCount, d3Count, d4Count, thumbTackCount]);
 
   // Handle click to throw dice or pick up outside dice
   const handleClick = useCallback(
@@ -328,6 +441,17 @@ export function Scene({
       );
 
       if (!diceManagerRef.current) return;
+
+      // Prevent dice throwing when cursor is unlocked, in menu, or in item selection
+      if (!document.pointerLockElement) {
+        console.log("❌ Cursor not locked - ignoring click");
+        return;
+      }
+
+      if (gameState.phase === "menu" || gameState.phase === "item_selection") {
+        console.log("❌ Wrong game phase - ignoring click:", gameState.phase);
+        return;
+      }
 
       // Perform raycast to check what surface we're clicking on
       const raycaster = new THREE.Raycaster();
@@ -372,34 +496,14 @@ export function Scene({
         return;
       }
 
-      // Priority 1: If dice have settled, calculate scores AND evaluate round in ONE click
-      if (diceManagerRef.current.hasSettledDice() && gameState.phase === "throwing") {
-        // TODO: Replace with actual dice values from physics simulation
-        // For now, generate random dice values to test scoring
-        const mockDiceValues: number[] = [];
-        for (let i = 0; i < diceCount; i++) {
-          mockDiceValues.push(Math.floor(Math.random() * 6) + 1); // D6: 1-6
-        }
-        for (let i = 0; i < d4Count; i++) {
-          mockDiceValues.push(Math.floor(Math.random() * 4) + 1); // D4: 1-4
-        }
-        for (let i = 0; i < d3Count; i++) {
-          mockDiceValues.push(Math.floor(Math.random() * 3) + 1); // D3: 1-3
-        }
+      // Priority 1: If dice have settled, evaluate the round (scoring already done in useFrame)
+      if (
+        diceManagerRef.current.hasSettledDice() &&
+        gameState.phase === "settled"
+      ) {
+        console.log("🎲 Click detected on settled dice - evaluating round");
 
-        console.log("🎲 Mock dice values on settle:", mockDiceValues);
-
-        // Manually check for pairs in console
-        const valueCounts = new Map<number, number>();
-        mockDiceValues.forEach((val) => {
-          valueCounts.set(val, (valueCounts.get(val) || 0) + 1);
-        });
-        console.log("🎲 Value counts:", Array.from(valueCounts.entries()));
-
-        // Calculate scores (this transitions to "settled" phase internally)
-        onDiceSettled(mockDiceValues);
-
-        // Immediately evaluate the round
+        // Evaluate the round - pick up dice outside receptacle
         const pickedUp = diceManagerRef.current.pickUpOutsideDice();
         console.log("Picked up", pickedUp, "dice outside receptacle");
 
@@ -456,13 +560,16 @@ export function Scene({
       console.log("Floor intersect:", didIntersect, intersectPoint);
 
       if (didIntersect && diceManagerRef.current) {
+        const cameraDirection = raycaster.ray.direction.clone();
         console.log(
           "Throwing dice from camera at:",
           cameraPosition,
           "to:",
-          intersectPoint
+          intersectPoint,
+          "direction:",
+          cameraDirection
         );
-        diceManagerRef.current.throwDice(intersectPoint, cameraPosition);
+        diceManagerRef.current.throwDice(intersectPoint, cameraPosition, undefined, cameraDirection);
       }
     },
     [
@@ -484,9 +591,38 @@ export function Scene({
     ]
   );
 
-  // Handle dice hovering using raycasting from center of screen (like store items)
+  // Handle automatic dice settling detection and score calculation
   useFrame(() => {
-    // Only check for dice hover when settled
+    // FIRST: Auto-detect when dice settle and calculate scores
+    if (
+      diceManagerRef.current?.hasSettledDice() &&
+      gameState.phase === "throwing"
+    ) {
+      // Get ACTUAL dice values and IDs from the physics simulation
+      const settledDice = diceManagerRef.current.getSettledDice();
+
+      // Extract values, IDs, and modifiers for scoring (only dice in receptacle count)
+      const diceInReceptacle = settledDice.filter((d) => d.inReceptacle);
+      const diceValues = diceInReceptacle.map((d) => d.value);
+      const diceIds = diceInReceptacle.map((d) => d.id);
+      const scoreMultipliers = diceInReceptacle.map(
+        (d) => d.scoreMultiplier || 1
+      );
+
+      console.log(
+        "🎲 Auto-detected settled dice - Values:",
+        diceValues,
+        "IDs:",
+        diceIds,
+        "Multipliers:",
+        scoreMultipliers
+      );
+
+      // Calculate scores immediately when dice settle
+      onDiceSettled(diceValues, diceIds, scoreMultipliers);
+    }
+
+    // SECOND: Check for dice hover when settled
     if (diceManagerRef.current?.hasSettledDice()) {
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
@@ -629,11 +765,12 @@ export function Scene({
       <primitive object={tray.scene} position={RECEPTACLE_POSITION} scale={1} />
       <Suspense fallback={null}>
         {/* Physics world for dice */}
-        <Physics gravity={[0, -10, 0]}>
+        <Physics gravity={[0, -9.66, 0]}>
           <DiceManager
             ref={diceManagerRef}
             diceCount={diceCount}
             coinCount={coinCount}
+            nickelCount={nickelCount}
             d3Count={d3Count}
             d4Count={d4Count}
             thumbTackCount={thumbTackCount}
@@ -643,6 +780,7 @@ export function Scene({
             onCardItemsChange={handleCardItemsChange}
             onCoinSettled={onDieSettledForCurrency}
             hoveredDiceId={hoveredDiceId}
+            highlightedDiceIds={highlightedDiceIds}
           />
 
           {/* Ground plane - using explicit CuboidCollider */}
@@ -723,6 +861,9 @@ export function Scene({
             spotlightAngle={spotlightAngle}
           />
 
+          {/* Debug: Dice Tray Bounds Visualization */}
+          {import.meta.env.DEV && <DiceTrayBoundsDebug />}
+
           {/* Hourglass - physics-enabled object on receptacle */}
           <Hourglass
             position={getHourglassPosition()}
@@ -785,7 +926,7 @@ export function Scene({
               // onPurchase is called on success to add the item
               onPurchase={() => onItemSelected(item)}
               // spendCurrency handles the transaction
-              spendCurrency={() => spendCurrency("cents", item.price || 0)}
+              spendCurrency={() => spendCurrency("cents", getItemPrice(item))}
             />
           ))}
 
@@ -794,7 +935,7 @@ export function Scene({
             <ItemChoice
               key={`reward-${index}`}
               item={item}
-              position={[-2.65 + index * 0.45, 1.08, 4.15]}
+              position={[-2.525 + index * 0.33, .72, 4.1]}
               onPurchase={() => onItemSelected(item)}
               spendCurrency={() => true}
             />
@@ -813,7 +954,45 @@ export function Scene({
       {/* <Window hellFactor={hellFactor} /> */}
       <CeilingLight hellFactor={hellFactor} />
       <Decorations hellFactor={hellFactor} />
-      <Ashtray hellFactor={hellFactor} />
+      <Ashtray
+        hellFactor={hellFactor}
+        cigaretteCount={inventory.passiveEffects.cigarette}
+      />
+
+      {/* Cigarette - appears in ashtray on bureau when acquired */}
+      {inventory.passiveEffects.cigarette > 0 && (
+        <Cigarette
+          position={[
+            RECEPTACLE_POSITION[0] - .666,
+            RECEPTACLE_POSITION[1] + 0.12,
+            RECEPTACLE_POSITION[2] - 0.22
+          ]}
+          rotation={[Math.PI / 2, Math.PI, Math.PI / 4]}
+          scale={1.8}
+          count={inventory.passiveEffects.cigarette}
+          onHover={(isHovered) =>
+            onTableItemHover?.(isHovered ? "cigarette" : null)
+          }
+        />
+      )}
+
+      {/* Incense Stick - appears at bottom right corner of dice tray, angled inward and upward */}
+      {inventory.consumables.find((c) => c.itemId === "incense") && (
+        <IncenseStick
+          position={[
+            RECEPTACLE_POSITION[0] + 0.456,
+            RECEPTACLE_POSITION[1] + 0.2,
+            RECEPTACLE_POSITION[2] - .249
+          ]}
+          rotation={[-Math.PI /  -2.3, .6, Math.PI / 4]}
+          scale={2.66}
+          isActive={isConsumableActive(inventory, "incense")}
+          onHover={(isHovered) =>
+            onTableItemHover?.(isHovered ? "incense" : null)
+          }
+        />
+      )}
+
       <BoardGame
         position={[2.01, 1.55, 4.88]}
         hellFactor={hellFactor}
