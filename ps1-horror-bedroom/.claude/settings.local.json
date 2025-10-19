@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm install)",
-      "Bash(npm run build)"
+      "Bash(npm run build)",
+      "Bash(tree -d -L 3 src)",
+      "Bash(xargs -I {} basename {})"
     ],
     "deny": [],
     "ask": []

@@ -55,7 +55,20 @@ interface SceneProps {
   nickelCount: number;
   d3Count: number;
   d4Count: number;
+  d8Count: number;
+  d10Count: number;
+  d12Count: number;
+  d20Count: number;
   thumbTackCount: number;
+  goldenPyramidCount: number;
+  caltropCount: number;
+  casinoRejectCount: number;
+  weightedDieCount: number;
+  loadedCoinCount: number;
+  cursedDieCount: number;
+  splitDieCount: number;
+  mirrorDieCount: number;
+  riggedDieCount: number;
   onDiceScoreChange: (score: number) => void;
   diceShaderEnabled: boolean;
   towerCardEnabled: boolean;
@@ -98,6 +111,7 @@ interface SceneProps {
       score: number;
       modifiers: string[];
       position: { x: number; y: number };
+      currencyEarned?: number;
     } | null
   ) => void;
   onTableItemHover?: (itemId: "cigarette" | "incense" | null) => void;
@@ -114,7 +128,20 @@ export function Scene({
   nickelCount,
   d3Count,
   d4Count,
+  d8Count,
+  d10Count,
+  d12Count,
+  d20Count,
   thumbTackCount,
+  goldenPyramidCount,
+  caltropCount,
+  casinoRejectCount,
+  weightedDieCount,
+  loadedCoinCount,
+  cursedDieCount,
+  splitDieCount,
+  mirrorDieCount,
+  riggedDieCount,
   onDiceScoreChange,
   diceShaderEnabled,
   towerCardEnabled,
@@ -656,7 +683,8 @@ export function Scene({
               faceValue: current.userData.faceValue || 0,
               score: current.userData.score || 0,
               modifiers: current.userData.modifiers || [],
-              position: { x: screenX, y: screenY }
+              position: { x: screenX, y: screenY },
+              currencyEarned: current.userData.currencyEarned
             };
 
             // Update both local ID for highlighting and parent for UI
@@ -773,7 +801,20 @@ export function Scene({
             nickelCount={nickelCount}
             d3Count={d3Count}
             d4Count={d4Count}
+            d8Count={d8Count}
+            d10Count={d10Count}
+            d12Count={d12Count}
+            d20Count={d20Count}
             thumbTackCount={thumbTackCount}
+            goldenPyramidCount={goldenPyramidCount}
+            caltropCount={caltropCount}
+            casinoRejectCount={casinoRejectCount}
+            weightedDieCount={weightedDieCount}
+            loadedCoinCount={loadedCoinCount}
+            cursedDieCount={cursedDieCount}
+            splitDieCount={splitDieCount}
+            mirrorDieCount={mirrorDieCount}
+            riggedDieCount={riggedDieCount}
             onScoreUpdate={onDiceScoreChange}
             shaderEnabled={diceShaderEnabled}
             cardEnabled={towerCardEnabled || sunCardEnabled}

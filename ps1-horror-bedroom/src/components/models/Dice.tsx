@@ -50,6 +50,7 @@ interface DiceProps {
   transformations?: string[]; // List of transformation modifiers applied
   scoreMultiplier?: number; // Score multiplier from transformations
   calculatedScore?: number; // Pre-calculated score with transformations applied
+  currencyEarned?: number; // Total currency earned from this die
 }
 
 export interface DiceHandle {
@@ -78,7 +79,8 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
       isHovered = false,
       transformations = [],
       scoreMultiplier = 1.0,
-      calculatedScore
+      calculatedScore,
+      currencyEarned
     },
     ref
   ) => {
@@ -180,7 +182,8 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
           diceType: diceType,
           faceValue: diceValue,
           score: scoreValue,
-          modifiers: transformations
+          modifiers: transformations,
+          currencyEarned: currencyEarned
         };
       }
     }, [
@@ -190,7 +193,8 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
       diceValue,
       transformations,
       scoreMultiplier,
-      calculatedScore
+      calculatedScore,
+      currencyEarned
     ]);
 
     // Check if dice has settled

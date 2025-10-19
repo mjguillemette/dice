@@ -196,6 +196,20 @@ export function GameHUD({
   ).length;
   const hasMultiScoreBonus = achievedScoresThisRound >= 2 && multiScoreMultiplier > 1.0;
 
+  // Debug logging for incense combo tracking
+  useEffect(() => {
+    if (incenseActive) {
+      const scoresWithCombo = scores.filter(s => s.comboCount && s.comboCount > 1);
+      if (scoresWithCombo.length > 0) {
+        console.log('🔥 Incense combos detected:', scoresWithCombo.map(s => ({
+          category: s.category,
+          comboCount: s.comboCount,
+          achieved: s.achieved
+        })));
+      }
+    }
+  }, [scores, incenseActive]);
+
   // Calculate time progression (3 successful rolls per time period)
   const rollsInCurrentPeriod = successfulRolls % 3;
   const rollsUntilNextPeriod = 3 - rollsInCurrentPeriod;

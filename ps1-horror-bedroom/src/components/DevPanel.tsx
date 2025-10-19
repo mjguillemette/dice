@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useInput } from "../systems/inputSystem";
 import { type GamePhase } from "../systems/gameStateSystem";
+import PerformanceMonitor from "./ui/PerformanceMonitor";
 import {
   getPhysicsConfig,
   getActivePreset,
@@ -95,6 +96,12 @@ export function DevPanel({
           onClick={() => setActiveTab("collision")}
         >
           Collision
+        </button>
+        <button
+          className={`dev-tab ${activeTab === "performance" ? "active" : ""}`}
+          onClick={() => setActiveTab("performance")}
+        >
+          Performance
         </button>
       </div>
 
@@ -384,6 +391,35 @@ export function DevPanel({
                 onChange={(v) => updateCollisionBoundsOffset({ depth: v })}
                 unit="m"
               />
+            </div>
+          </div>
+        )}
+
+        {/* PERFORMANCE TAB */}
+        {activeTab === "performance" && (
+          <div className="dev-section">
+            <div className="dev-group">
+              <h3>Real-Time Metrics</h3>
+              <PerformanceMonitor />
+            </div>
+
+            <div className="dev-group" style={{ marginTop: '16px' }}>
+              <h3>Optimization Tips</h3>
+              <div style={{ fontSize: '11px', color: '#a89884', lineHeight: '1.6' }}>
+                <p><strong>To improve FPS:</strong></p>
+                <ul style={{ paddingLeft: '20px', margin: '8px 0' }}>
+                  <li>Reduce number of active dice</li>
+                  <li>Disable visual effects in low FPS</li>
+                  <li>Lower texture quality</li>
+                  <li>Disable shadows if necessary</li>
+                </ul>
+                <p><strong>To reduce draw calls:</strong></p>
+                <ul style={{ paddingLeft: '20px', margin: '8px 0' }}>
+                  <li>Use instanced rendering</li>
+                  <li>Combine similar materials</li>
+                  <li>Use texture atlases</li>
+                </ul>
+              </div>
             </div>
           </div>
         )}

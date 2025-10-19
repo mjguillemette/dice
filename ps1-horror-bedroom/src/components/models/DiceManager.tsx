@@ -28,7 +28,9 @@ type DiceStatus =
 
 interface DiceInstance {
   id: number;
-  type: "d6" | "coin" | "nickel" | "d3" | "d4" | "thumbtack";
+  type: "d6" | "coin" | "nickel" | "d3" | "d4" | "d8" | "d10" | "d12" | "d20" | "thumbtack"
+    | "golden_pyramid" | "caltrop" | "casino_reject" | "weighted_die" | "loaded_coin"
+    | "cursed_die" | "split_die" | "mirror_die" | "rigged_die";
   position?: [number, number, number]; // present while thrown/settled
   initialVelocity?: [number, number, number];
   initialAngularVelocity?: [number, number, number];
@@ -38,6 +40,7 @@ interface DiceInstance {
   generation: number;
   status: DiceStatus;
   transformations: DiceTransformation[]; // Permanent transformations applied to this die
+  currencyEarned?: number; // Total currency earned from this die (for coins/nickels)
 }
 
 interface DiceManagerProps {
@@ -46,7 +49,21 @@ interface DiceManagerProps {
   nickelCount: number;
   d3Count: number;
   d4Count: number;
+  d8Count: number;
+  d10Count: number;
+  d12Count: number;
+  d20Count: number;
   thumbTackCount: number;
+  // Special dice
+  goldenPyramidCount: number;
+  caltropCount: number;
+  casinoRejectCount: number;
+  weightedDieCount: number;
+  loadedCoinCount: number;
+  cursedDieCount: number;
+  splitDieCount: number;
+  mirrorDieCount: number;
+  riggedDieCount: number;
   onScoreUpdate?: (score: number) => void;
   shaderEnabled: boolean;
   cardEnabled: boolean; // Whether the card is placed on the receptacle
@@ -61,7 +78,9 @@ interface DiceManagerProps {
 
 export interface SettledDieData {
   id: number;
-  type: "d6" | "coin" | "nickel" | "d3" | "d4" | "thumbtack";
+  type: "d6" | "coin" | "nickel" | "d3" | "d4" | "d8" | "d10" | "d12" | "d20" | "thumbtack"
+    | "golden_pyramid" | "caltrop" | "casino_reject" | "weighted_die" | "loaded_coin"
+    | "cursed_die" | "split_die" | "mirror_die" | "rigged_die";
   value: number;
   inReceptacle: boolean;
   scoreMultiplier?: number; // From transformations
@@ -87,7 +106,20 @@ export interface DiceManagerHandle {
     nickels: number;
     d3: number;
     d4: number;
+    d8: number;
+    d10: number;
+    d12: number;
+    d20: number;
     thumbtacks: number;
+    golden_pyramid: number;
+    caltrop: number;
+    casino_reject: number;
+    weighted_die: number;
+    loaded_coin: number;
+    cursed_die: number;
+    split_die: number;
+    mirror_die: number;
+    rigged_die: number;
   }) => void; // Update dice pool without losing transformations
   startNewRound: () => void; // Start a new round - pick up all dice and reset score
   applyCardTransformation: (diceId: number, cardType: "sun" | "tower") => void; // Apply transformation when die collides with card
@@ -102,7 +134,20 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       nickelCount,
       d3Count,
       d4Count,
+      d8Count,
+      d10Count,
+      d12Count,
+      d20Count,
       thumbTackCount,
+      goldenPyramidCount,
+      caltropCount,
+      casinoRejectCount,
+      weightedDieCount,
+      loadedCoinCount,
+      cursedDieCount,
+      splitDieCount,
+      mirrorDieCount,
+      riggedDieCount,
       onScoreUpdate,
       shaderEnabled,
       cardEnabled,
@@ -134,14 +179,32 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
         case "thumbtack":
           return 1;
         case "coin":
+        case "loaded_coin":
           return 2;
         case "nickel":
           return 2; // Nickel rolls 5 or 10 (represented as 1 or 2, multiplied by 5)
         case "d3":
+        case "golden_pyramid":
           return 3;
         case "d4":
+        case "caltrop":
           return 4;
         case "d6":
+        case "casino_reject":
+        case "weighted_die":
+        case "cursed_die":
+        case "split_die":
+        case "mirror_die":
+        case "rigged_die":
+          return 6;
+        case "d8":
+          return 8;
+        case "d10":
+          return 10;
+        case "d12":
+          return 12;
+        case "d20":
+          return 20;
         default:
           return 6;
       }
@@ -275,6 +338,22 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
               created.push(
                 createDieObject("d4", thisGeneration, origin, clickPosition, cameraDirection)
               );
+            for (let i = 0; i < d8Count; i++)
+              created.push(
+                createDieObject("d8", thisGeneration, origin, clickPosition, cameraDirection)
+              );
+            for (let i = 0; i < d10Count; i++)
+              created.push(
+                createDieObject("d10", thisGeneration, origin, clickPosition, cameraDirection)
+              );
+            for (let i = 0; i < d12Count; i++)
+              created.push(
+                createDieObject("d12", thisGeneration, origin, clickPosition, cameraDirection)
+              );
+            for (let i = 0; i < d20Count; i++)
+              created.push(
+                createDieObject("d20", thisGeneration, origin, clickPosition, cameraDirection)
+              );
             for (let i = 0; i < thumbTackCount; i++)
               created.push(
                 createDieObject(
@@ -284,6 +363,43 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
                   clickPosition,
                   cameraDirection
                 )
+              );
+            // Special dice
+            for (let i = 0; i < goldenPyramidCount; i++)
+              created.push(
+                createDieObject("golden_pyramid", thisGeneration, origin, clickPosition, cameraDirection)
+              );
+            for (let i = 0; i < caltropCount; i++)
+              created.push(
+                createDieObject("caltrop", thisGeneration, origin, clickPosition, cameraDirection)
+              );
+            for (let i = 0; i < casinoRejectCount; i++)
+              created.push(
+                createDieObject("casino_reject", thisGeneration, origin, clickPosition, cameraDirection)
+              );
+            for (let i = 0; i < weightedDieCount; i++)
+              created.push(
+                createDieObject("weighted_die", thisGeneration, origin, clickPosition, cameraDirection)
+              );
+            for (let i = 0; i < loadedCoinCount; i++)
+              created.push(
+                createDieObject("loaded_coin", thisGeneration, origin, clickPosition, cameraDirection)
+              );
+            for (let i = 0; i < cursedDieCount; i++)
+              created.push(
+                createDieObject("cursed_die", thisGeneration, origin, clickPosition, cameraDirection)
+              );
+            for (let i = 0; i < splitDieCount; i++)
+              created.push(
+                createDieObject("split_die", thisGeneration, origin, clickPosition, cameraDirection)
+              );
+            for (let i = 0; i < mirrorDieCount; i++)
+              created.push(
+                createDieObject("mirror_die", thisGeneration, origin, clickPosition, cameraDirection)
+              );
+            for (let i = 0; i < riggedDieCount; i++)
+              created.push(
+                createDieObject("rigged_die", thisGeneration, origin, clickPosition, cameraDirection)
               );
             return created;
           }
@@ -349,7 +465,8 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
           return next;
         });
       },
-      [isThrowing, diceCount, coinCount, d3Count, d4Count, thumbTackCount]
+      [isThrowing, diceCount, coinCount, nickelCount, d3Count, d4Count, d8Count, d10Count, d12Count, d20Count, thumbTackCount,
+       goldenPyramidCount, caltropCount, casinoRejectCount, weightedDieCount, loadedCoinCount, cursedDieCount, splitDieCount, mirrorDieCount, riggedDieCount]
     );
 
     const clearDice = useCallback(() => {
@@ -481,7 +598,20 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
         nickels: number;
         d3: number;
         d4: number;
+        d8: number;
+        d10: number;
+        d12: number;
+        d20: number;
         thumbtacks: number;
+        golden_pyramid: number;
+        caltrop: number;
+        casino_reject: number;
+        weighted_die: number;
+        loaded_coin: number;
+        cursed_die: number;
+        split_die: number;
+        mirror_die: number;
+        rigged_die: number;
       }) => {
         setDiceInstances((prev) => {
           const totalByType = {
@@ -490,7 +620,20 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
             nickel: prev.filter((d) => d.type === "nickel").length,
             d3: prev.filter((d) => d.type === "d3").length,
             d4: prev.filter((d) => d.type === "d4").length,
-            thumbtack: prev.filter((d) => d.type === "thumbtack").length
+            d8: prev.filter((d) => d.type === "d8").length,
+            d10: prev.filter((d) => d.type === "d10").length,
+            d12: prev.filter((d) => d.type === "d12").length,
+            d20: prev.filter((d) => d.type === "d20").length,
+            thumbtack: prev.filter((d) => d.type === "thumbtack").length,
+            golden_pyramid: prev.filter((d) => d.type === "golden_pyramid").length,
+            caltrop: prev.filter((d) => d.type === "caltrop").length,
+            casino_reject: prev.filter((d) => d.type === "casino_reject").length,
+            weighted_die: prev.filter((d) => d.type === "weighted_die").length,
+            loaded_coin: prev.filter((d) => d.type === "loaded_coin").length,
+            cursed_die: prev.filter((d) => d.type === "cursed_die").length,
+            split_die: prev.filter((d) => d.type === "split_die").length,
+            mirror_die: prev.filter((d) => d.type === "mirror_die").length,
+            rigged_die: prev.filter((d) => d.type === "rigged_die").length
           };
 
           let updated = [...prev];
@@ -513,11 +656,24 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
             },
             { type: "d3", current: totalByType.d3, target: newCounts.d3 },
             { type: "d4", current: totalByType.d4, target: newCounts.d4 },
+            { type: "d8", current: totalByType.d8, target: newCounts.d8 },
+            { type: "d10", current: totalByType.d10, target: newCounts.d10 },
+            { type: "d12", current: totalByType.d12, target: newCounts.d12 },
+            { type: "d20", current: totalByType.d20, target: newCounts.d20 },
             {
               type: "thumbtack",
               current: totalByType.thumbtack,
               target: newCounts.thumbtacks
-            }
+            },
+            { type: "golden_pyramid", current: totalByType.golden_pyramid, target: newCounts.golden_pyramid },
+            { type: "caltrop", current: totalByType.caltrop, target: newCounts.caltrop },
+            { type: "casino_reject", current: totalByType.casino_reject, target: newCounts.casino_reject },
+            { type: "weighted_die", current: totalByType.weighted_die, target: newCounts.weighted_die },
+            { type: "loaded_coin", current: totalByType.loaded_coin, target: newCounts.loaded_coin },
+            { type: "cursed_die", current: totalByType.cursed_die, target: newCounts.cursed_die },
+            { type: "split_die", current: totalByType.split_die, target: newCounts.split_die },
+            { type: "mirror_die", current: totalByType.mirror_die, target: newCounts.mirror_die },
+            { type: "rigged_die", current: totalByType.rigged_die, target: newCounts.rigged_die }
           ];
 
           for (const { type, current, target } of types) {
@@ -621,7 +777,20 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
         nickels: nickelCount,
         d3: d3Count,
         d4: d4Count,
-        thumbtacks: thumbTackCount
+        d8: d8Count,
+        d10: d10Count,
+        d12: d12Count,
+        d20: d20Count,
+        thumbtacks: thumbTackCount,
+        golden_pyramid: goldenPyramidCount,
+        caltrop: caltropCount,
+        casino_reject: casinoRejectCount,
+        weighted_die: weightedDieCount,
+        loaded_coin: loadedCoinCount,
+        cursed_die: cursedDieCount,
+        split_die: splitDieCount,
+        mirror_die: mirrorDieCount,
+        rigged_die: riggedDieCount
       });
     }, [
       diceCount,
@@ -629,7 +798,20 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       nickelCount,
       d3Count,
       d4Count,
+      d8Count,
+      d10Count,
+      d12Count,
+      d20Count,
       thumbTackCount,
+      goldenPyramidCount,
+      caltropCount,
+      casinoRejectCount,
+      weightedDieCount,
+      loadedCoinCount,
+      cursedDieCount,
+      splitDieCount,
+      mirrorDieCount,
+      riggedDieCount,
       updateDicePool
     ]);
 
@@ -733,6 +915,7 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
         }
 
         let dieTransformations: DiceTransformation[] = [];
+        let totalCurrency = 0; // Track total currency for this die
 
         setDiceInstances((prev) => {
           const updated = prev.map((d) => {
@@ -755,7 +938,8 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
               ],
               settled: true,
               inReceptacle,
-              status: newStatus
+              status: newStatus,
+              currencyEarned: 0 // Initialize, will be updated below
               // transformations are NOT modified here - they're set by collision detection
             } as DiceInstance;
           });
@@ -791,6 +975,7 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
               baseValue * currencyMultiplier * effects.scoreMultiplier * edgeMultiplier
             );
             if (currencyForThisRoll > 0) {
+              totalCurrency += currencyForThisRoll; // Accumulate currency
               onCoinSettled(type, currencyForThisRoll);
             }
           } // Now, handle conceptual re-rolls for additional currency and final score
@@ -813,6 +998,7 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
                 console.log(
                   `💰 Granting additional ${additionalCurrency} cents from re-roll.`
                 );
+                totalCurrency += additionalCurrency; // Accumulate re-roll currency
                 onCoinSettled(type, additionalCurrency);
               }
             }
@@ -824,6 +1010,15 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
 
           scoredDiceIds.current.add(id);
           totalScoreRef.current += finalScore;
+
+          // Update dice instance with total currency earned
+          if (totalCurrency > 0) {
+            setDiceInstances((prev) =>
+              prev.map((d) =>
+                d.id === id ? { ...d, currencyEarned: totalCurrency } : d
+              )
+            );
+          }
           console.log(
             `🎲 Die ${id} scored:`,
             `base=${value}`,
@@ -903,6 +1098,7 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
               transformations={getTransformationNames(dice.transformations)}
               scoreMultiplier={transformationEffects.scoreMultiplier}
               calculatedScore={scoreWithMultiplier}
+              currencyEarned={dice.currencyEarned}
             />
           );
         })}

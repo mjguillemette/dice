@@ -44,7 +44,21 @@ function AppContent() {
   const [nickelCount, setNickelCount] = useState(0);
   const [d3Count, setD3Count] = useState(0);
   const [d4Count, setD4Count] = useState(0);
+  const [d8Count, setD8Count] = useState(0);
+  const [d10Count, setD10Count] = useState(0);
+  const [d12Count, setD12Count] = useState(0);
+  const [d20Count, setD20Count] = useState(0);
   const [thumbTackCount, setThumbTackCount] = useState(2);
+  // Special dice
+  const [goldenPyramidCount, setGoldenPyramidCount] = useState(0);
+  const [caltropCount, setCaltropCount] = useState(0);
+  const [casinoRejectCount, setCasinoRejectCount] = useState(0);
+  const [weightedDieCount, setWeightedDieCount] = useState(0);
+  const [loadedCoinCount, setLoadedCoinCount] = useState(0);
+  const [cursedDieCount, setCursedDieCount] = useState(0);
+  const [splitDieCount, setSplitDieCount] = useState(0);
+  const [mirrorDieCount, setMirrorDieCount] = useState(0);
+  const [riggedDieCount, setRiggedDieCount] = useState(0);
   const [diceScore, setDiceScore] = useState(0);
   const [diceShaderEnabled, _setDiceShaderEnabled] = useState(true);
   const [towerCardEnabled, setTowerCardEnabled] = useState(false);
@@ -217,7 +231,20 @@ function AppContent() {
     setThumbTackCount(inventory.dice.thumbtacks);
     setD3Count(inventory.dice.d3);
     setD4Count(inventory.dice.d4);
-    // TODO: Set new dice type counts when implementing physics
+    setD8Count(inventory.dice.d8);
+    setD10Count(inventory.dice.d10);
+    setD12Count(inventory.dice.d12);
+    setD20Count(inventory.dice.d20);
+    // Special dice
+    setGoldenPyramidCount(inventory.dice.golden_pyramid);
+    setCaltropCount(inventory.dice.caltrop);
+    setCasinoRejectCount(inventory.dice.casino_reject);
+    setWeightedDieCount(inventory.dice.weighted_die);
+    setLoadedCoinCount(inventory.dice.loaded_coin);
+    setCursedDieCount(inventory.dice.cursed_die);
+    setSplitDieCount(inventory.dice.split_die);
+    setMirrorDieCount(inventory.dice.mirror_die);
+    setRiggedDieCount(inventory.dice.rigged_die);
     setTowerCardEnabled(inventory.cards.tower);
     setSunCardEnabled(inventory.cards.sun);
   }, [inventory]);
@@ -442,6 +469,7 @@ function AppContent() {
           corruption={gameState.corruption}
           successfulRolls={gameState.successfulRolls}
           daysMarked={gameState.daysMarked}
+          incenseActive={isConsumableActive(inventory, "incense")}
         />
       )}
 
@@ -470,7 +498,20 @@ function AppContent() {
           nickelCount={nickelCount}
           d3Count={d3Count}
           d4Count={d4Count}
+          d8Count={d8Count}
+          d10Count={d10Count}
+          d12Count={d12Count}
+          d20Count={d20Count}
           thumbTackCount={thumbTackCount}
+          goldenPyramidCount={goldenPyramidCount}
+          caltropCount={caltropCount}
+          casinoRejectCount={casinoRejectCount}
+          weightedDieCount={weightedDieCount}
+          loadedCoinCount={loadedCoinCount}
+          cursedDieCount={cursedDieCount}
+          splitDieCount={splitDieCount}
+          mirrorDieCount={mirrorDieCount}
+          riggedDieCount={riggedDieCount}
           onDiceScoreChange={setDiceScore}
           diceShaderEnabled={diceShaderEnabled}
           towerCardEnabled={towerCardEnabled}
