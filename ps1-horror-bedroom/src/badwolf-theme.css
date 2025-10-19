@@ -1,0 +1,47 @@
+/**
+ * Bad Wolf Color Theme
+ *
+ * "I am the Bad Wolf. I create myself.
+ *  I take the words. I scatter them in time and space."
+ *
+ * A warm, saturated color scheme by Steve Losh
+ * Adapted for PS1 Horror Dice Game
+ */
+
+:root {
+  /* Base colors */
+  --bw-plain: #f8f6f2;
+  --bw-snow: #ffffff;
+  --bw-coal: #000000;
+
+  /* Gravel spectrum (browns/grays) */
+  --bw-brightgravel: #d9cec3;
+  --bw-lightgravel: #998f84;
+  --bw-gravel: #857f78;
+  --bw-mediumgravel: #666462;
+  --bw-deepgravel: #45413b;
+  --bw-deepergravel: #35322d;
+  --bw-darkgravel: #242321;
+  --bw-blackgravel: #1c1b1a;
+  --bw-blackestgravel: #141413;
+
+  /* Accent colors */
+  --bw-dalespale: #fade3e;      /* Warm yellow */
+  --bw-dirtyblonde: #f4cf86;    /* Tan */
+  --bw-taffy: #ff2c4b;          /* Hot pink/red */
+  --bw-saltwatertaffy: #8cffba; /* Mint green */
+  --bw-tardis: #0a9dff;         /* Electric blue */
+  --bw-orange: #ffa724;         /* Orange */
+  --bw-lime: #aeee00;           /* Lime green */
+  --bw-dress: #ff9eb8;          /* Rose pink */
+  --bw-toffee: #b88853;         /* Brown */
+  --bw-coffee: #c7915b;         /* Light brown */
+  --bw-darkroast: #88633f;      /* Dark brown */
+}
+
+/* Apply theme globally */
+body {
+  background-color: var(--bw-blackgravel);
+  color: var(--bw-plain);
+  font-family: 'Courier New', monospace;
+}
