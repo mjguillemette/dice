@@ -6,6 +6,7 @@ import Crosshair from "./components/ui/Crosshair";
 import GameHUD from "./components/ui/GameHUD";
 import { type DiceData } from "./components/ui/DiceInfo";
 import TableItemInfo, { type TableItemData } from "./components/ui/TableItemInfo";
+import MobileControls from "./components/ui/MobileControls";
 import { useWallet } from "./hooks/useWallet";
 import { usePersistence } from "./hooks/usePersistence";
 import { GameStateProvider, useGameState } from "./contexts/GameStateContext";
@@ -74,6 +75,10 @@ function AppContent() {
   const [hoveredDice, setHoveredDice] = useState<DiceData | null>(null);
   const [hoveredTableItem, setHoveredTableItem] = useState<TableItemData | null>(null);
   const [highlightedDiceIds, setHighlightedDiceIds] = useState<number[]>([]);
+
+  // Mobile: Gyroscope controls
+  const [hasGyroPermission, setHasGyroPermission] = useState(false);
+  const recenterGyroRef = useRef<(() => void) | null>(null);
   const [isCursorLocked, setIsCursorLocked] = useState(false);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -545,8 +550,15 @@ function AppContent() {
           onDiceHover={setHoveredDice}
           onTableItemHover={handleTableItemHover}
           highlightedDiceIds={highlightedDiceIds}
+          onGyroPermissionChange={setHasGyroPermission}
+          onRecenterGyroReady={(fn) => { recenterGyroRef.current = fn; }}
         />
       </Canvas>
+
+      <MobileControls
+        onRecenterGyro={() => recenterGyroRef.current?.()}
+        hasGyroPermission={hasGyroPermission}
+      />
 
       <DevPanel
         cameraName={cameraName}

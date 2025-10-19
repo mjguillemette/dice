@@ -908,19 +908,141 @@
 
 @media (max-width: 768px) {
   .game-hud {
-    top: 10px;
-    right: 10px;
-    gap: 12px;
+    top: 8px;
+    right: 8px;
+    gap: 10px;
+    max-width: calc(100vw - 16px);
   }
 
   .hud-scores,
   .hud-attempt {
-    width: 280px;
+    width: min(280px, calc(100vw - 16px));
   }
 
   .attempt-value {
     font-size: 40px;
     min-height: 50px;
+  }
+
+  .hud-panel {
+    border-radius: 8px;
+  }
+
+  .hud-header {
+    padding: 12px 16px 10px;
+  }
+
+  .hud-title {
+    font-size: 13px;
+  }
+
+  .score-item {
+    padding: 10px 12px;
+    margin: 4px 0;
+  }
+
+  .score-name {
+    font-size: 12px;
+  }
+
+  .score-points {
+    font-size: 14px;
+  }
+
+  .hud-footer {
+    padding: 12px 16px;
+  }
+
+  .wallet-amount {
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .game-hud {
+    top: 4px;
+    right: 4px;
+    gap: 8px;
+  }
+
+  .hud-scores,
+  .hud-attempt {
+    width: calc(100vw - 8px);
+  }
+
+  .hud-scores {
+    max-height: calc(100vh - 200px);
+  }
+
+  .hud-title {
+    font-size: 12px;
+  }
+
+  .score-item {
+    padding: 8px 10px;
+  }
+
+  .daily-target,
+  .corruption-meter {
+    padding: 8px 10px;
+  }
+
+  .target-values {
+    font-size: 18px;
+  }
+}
+
+/* ===== MOBILE CONTROL BUTTONS ===== */
+.mobile-controls {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.mobile-control-btn {
+  pointer-events: auto;
+  background: rgba(20, 19, 26, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(153, 143, 132, 0.15);
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--bw-plain);
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 16px rgba(28, 27, 26, 0.4);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-control-btn:active {
+  transform: scale(0.95);
+  background: rgba(20, 19, 26, 0.98);
+  border-color: rgba(153, 143, 132, 0.3);
+  box-shadow: 0 2px 8px rgba(28, 27, 26, 0.6);
+}
+
+.mobile-control-btn.gyro-btn {
+  border-color: rgba(10, 157, 255, 0.3);
+}
+
+.mobile-control-btn.gyro-btn:active {
+  border-color: rgba(10, 157, 255, 0.6);
+  box-shadow: 0 0 16px rgba(10, 157, 255, 0.4);
+}
+
+@media (min-width: 769px) {
+  .mobile-controls {
+    display: none;
   }
 }
 /* ===== TIME PROGRESSION ===== */

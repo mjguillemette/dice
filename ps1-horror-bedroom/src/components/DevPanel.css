@@ -348,3 +348,153 @@
   margin: 0 4px;
   box-shadow: 0 1px 0 #0f0d0a;
 }
+
+/* ===== MOBILE RESPONSIVENESS ===== */
+@media (max-width: 768px) {
+  .dev-panel {
+    width: 95%;
+    max-width: none;
+    max-height: 85vh;
+  }
+
+  .dev-panel-header {
+    padding: 12px 16px;
+  }
+
+  .dev-panel-header h2 {
+    font-size: 14px;
+  }
+
+  .dev-panel-tabs {
+    padding: 0 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .dev-panel-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dev-tab {
+    padding: 10px 14px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .dev-panel-content {
+    padding: 16px;
+  }
+
+  .dev-group {
+    margin-bottom: 16px;
+  }
+
+  .dev-group h3 {
+    font-size: 12px;
+  }
+
+  .dev-help {
+    font-size: 10px;
+  }
+
+  .dev-stat {
+    padding: 8px;
+  }
+
+  .dev-label {
+    font-size: 10px;
+  }
+
+  .dev-value {
+    font-size: 12px;
+  }
+
+  .dev-button {
+    padding: 10px 14px;
+    font-size: 11px;
+    min-height: 44px; /* Touch-friendly target */
+  }
+
+  .dev-button.small {
+    min-height: 38px;
+  }
+
+  .dev-preset-buttons {
+    gap: 6px;
+  }
+
+  .dev-slider-input {
+    height: 8px; /* Larger touch target */
+  }
+
+  .dev-slider-input::-webkit-slider-thumb {
+    width: 20px; /* Larger thumb for touch */
+    height: 20px;
+  }
+
+  .dev-slider-input::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dev-panel {
+    width: 98%;
+    max-height: 90vh;
+  }
+
+  .dev-panel-header {
+    padding: 10px 12px;
+  }
+
+  .dev-panel-header h2 {
+    font-size: 13px;
+  }
+
+  .dev-tab {
+    padding: 8px 10px;
+    font-size: 10px;
+  }
+
+  .dev-panel-content {
+    padding: 12px;
+  }
+
+  .dev-slider {
+    margin-bottom: 12px;
+  }
+
+  .dev-preset-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .dev-panel-footer {
+    padding: 10px 12px;
+    font-size: 10px;
+  }
+
+  .dev-panel-footer kbd {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
+}
+
+/* Touch-friendly adjustments */
+@media (hover: none) and (pointer: coarse) {
+  .dev-button,
+  .dev-tab,
+  .dev-panel-close {
+    -webkit-tap-highlight-color: rgba(255, 107, 74, 0.2);
+    user-select: none;
+  }
+
+  .dev-slider-input {
+    cursor: grab;
+  }
+
+  .dev-slider-input:active {
+    cursor: grabbing;
+  }
+}

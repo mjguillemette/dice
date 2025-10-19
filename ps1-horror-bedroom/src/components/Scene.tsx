@@ -12,7 +12,10 @@ import {
 import { type TimeOfDay } from "../systems/gameStateSystem";
 import { getTimeProgressRatio } from "../systems/gameStateSystem";
 import { useInput, useMouseLook } from "../systems/inputSystem";
+import { useTouchInput } from "../systems/touchInputSystem";
+import { useDeviceOrientation } from "../systems/deviceOrientationControls";
 import { useCorruption } from "../systems/corruptionSystem";
+import { isMobileDevice } from "../utils/mobileDetection";
 import { useGameState } from "../contexts/GameStateContext";
 import CameraSystem from "./camera/CameraSystem";
 import LightingRig from "./lighting/LightingRig";
@@ -116,6 +119,8 @@ interface SceneProps {
   ) => void;
   onTableItemHover?: (itemId: "cigarette" | "incense" | null) => void;
   highlightedDiceIds: number[]; // NEW: Dice IDs to highlight from scorecard hover
+  onGyroPermissionChange?: (hasPermission: boolean) => void; // Mobile: Gyro permission status
+  onRecenterGyroReady?: (recenterFn: () => void) => void; // Mobile: Provide recenter function
 }
 export function Scene({
   onCameraNameChange,
@@ -170,12 +175,17 @@ export function Scene({
   onStartGame,
   onDiceHover,
   onTableItemHover,
-  highlightedDiceIds
+  highlightedDiceIds,
+  onGyroPermissionChange,
+  onRecenterGyroReady
 }: SceneProps) {
   const { scene, camera, gl } = useThree();
   const { returnToMenu } = useGameState();
   const [isStarting, setIsStarting] = useState(false);
   const hasStartedGameRef = useRef(false);
+
+  // Detect if on mobile device
+  const [isMobile] = useState(() => isMobileDevice());
 
   useEffect(() => {
     // Only trigger the starting animation when transitioning from menu to idle (first time)
@@ -375,6 +385,24 @@ export function Scene({
   // Disable mouse look during menu OR during the initial starting transition
   useMouseLook(handleMouseMove, gameState.phase !== "menu" && !isStarting);
 
+  // Device orientation controls for mobile
+  const { hasPermission: hasGyroPermission, recenter: recenterGyro } = useDeviceOrientation({
+    yawRef,
+    pitchRef,
+    enabled: isMobile && gameState.phase !== "menu" && !isStarting,
+    onPermissionChange: (granted) => {
+      console.log('📱 Gyroscope permission:', granted ? 'granted' : 'denied');
+      onGyroPermissionChange?.(granted);
+    }
+  });
+
+  // Expose recenter function to parent
+  useEffect(() => {
+    if (isMobile && hasGyroPermission) {
+      onRecenterGyroReady?.(recenterGyro);
+    }
+  }, [isMobile, hasGyroPermission, recenterGyro, onRecenterGyroReady]);
+
   // Track smooth fog color transitions
   const targetFogColorRef = useRef<THREE.Color>(new THREE.Color(TIME_OF_DAY_CONFIG[timeOfDay].fogColor));
   const currentFogColorRef = useRef<THREE.Color>(new THREE.Color(TIME_OF_DAY_CONFIG[timeOfDay].fogColor));
@@ -452,31 +480,49 @@ export function Scene({
         nickels: nickelCount,
         d3: d3Count,
         d4: d4Count,
-        thumbtacks: thumbTackCount
+        d8: d8Count,
+        d10: d10Count,
+        d12: d12Count,
+        d20: d20Count,
+        thumbtacks: thumbTackCount,
+        golden_pyramid: goldenPyramidCount,
+        caltrop: caltropCount,
+        casino_reject: casinoRejectCount,
+        weighted_die: weightedDieCount,
+        loaded_coin: loadedCoinCount,
+        cursed_die: cursedDieCount,
+        split_die: splitDieCount,
+        mirror_die: mirrorDieCount,
+        rigged_die: riggedDieCount
       });
     }
-  }, [diceCount, coinCount, nickelCount, d3Count, d4Count, thumbTackCount]);
+  }, [diceCount, coinCount, nickelCount, d3Count, d4Count, d8Count, d10Count, d12Count, d20Count, thumbTackCount,
+      goldenPyramidCount, caltropCount, casinoRejectCount, weightedDieCount, loadedCoinCount, cursedDieCount, splitDieCount, mirrorDieCount, riggedDieCount]);
 
-  // Handle click to throw dice or pick up outside dice
-  const handleClick = useCallback(
-    (event: MouseEvent) => {
+  // Unified dice throwing/interaction handler (works for both mouse and touch)
+  const handleThrowOrInteract = useCallback(
+    (clientX?: number, clientY?: number) => {
       console.log(
-        "Click detected! Pointer locked:",
+        "Throw/Interact triggered! Pointer locked:",
         !!document.pointerLockElement,
         "Game phase:",
-        gameState.phase
+        gameState.phase,
+        "Mobile:",
+        isMobile
       );
 
       if (!diceManagerRef.current) return;
 
-      // Prevent dice throwing when cursor is unlocked, in menu, or in item selection
-      if (!document.pointerLockElement) {
-        console.log("❌ Cursor not locked - ignoring click");
-        return;
+      // On mobile, we don't require pointer lock
+      if (!isMobile) {
+        if (!document.pointerLockElement) {
+          console.log("❌ Cursor not locked - ignoring click");
+          return;
+        }
       }
 
       if (gameState.phase === "menu" || gameState.phase === "item_selection") {
-        console.log("❌ Wrong game phase - ignoring click:", gameState.phase);
+        console.log("❌ Wrong game phase - ignoring interaction:", gameState.phase);
         return;
       }
 
@@ -484,29 +530,27 @@ export function Scene({
       const raycaster = new THREE.Raycaster();
       let mouse: THREE.Vector2;
 
-      if (document.pointerLockElement) {
-        // First-person mode - raycast from center of screen
+      // On mobile or pointer lock: raycast from center. Otherwise use provided coordinates
+      if (isMobile || document.pointerLockElement) {
         mouse = new THREE.Vector2(0, 0);
-      } else {
-        // Cinematic mode - raycast from mouse position
+      } else if (clientX !== undefined && clientY !== undefined) {
         const rect = gl.domElement.getBoundingClientRect();
         mouse = new THREE.Vector2(
-          ((event.clientX - rect.left) / rect.width) * 2 - 1,
-          -((event.clientY - rect.top) / rect.height) * 2 + 1
+          ((clientX - rect.left) / rect.width) * 2 - 1,
+          -((clientY - rect.top) / rect.height) * 2 + 1
         );
+      } else {
+        mouse = new THREE.Vector2(0, 0);
       }
 
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(scene.children, true);
 
-      // Check if we hit an item choice (they're inside Physics, which is in scene.children)
-      // Item choices are named "ItemChoice" or have specific materials/geometries
+      // Check if we hit an item choice
       const hitItemChoice = intersects.some((intersect) => {
         const obj = intersect.object;
-        // Check if this object or any parent is part of an item choice
         let current: THREE.Object3D | null = obj;
         while (current) {
-          // Item choices are meshes with specific names or are children of groups positioned at item locations
           if (
             current.name === "ItemChoice" ||
             (current.parent && current.parent.name === "ItemChoice")
@@ -523,24 +567,21 @@ export function Scene({
         return;
       }
 
-      // Priority 1: If dice have settled, evaluate the round (scoring already done in useFrame)
+      // Priority 1: If dice have settled, evaluate the round
       if (
         diceManagerRef.current.hasSettledDice() &&
         gameState.phase === "settled"
       ) {
-        console.log("🎲 Click detected on settled dice - evaluating round");
+        console.log("🎲 Interaction on settled dice - evaluating round");
 
-        // Evaluate the round - pick up dice outside receptacle
         const pickedUp = diceManagerRef.current.pickUpOutsideDice();
         console.log("Picked up", pickedUp, "dice outside receptacle");
 
         if (pickedUp === 0) {
-          // All dice were in receptacle - successful round!
           console.log("✅ All dice in receptacle - successful round!");
           onSuccessfulRoll();
           diceManagerRef.current.startNewRound();
         } else {
-          // Some dice were outside receptacle - failed attempt
           console.log(
             "❌",
             pickedUp,
@@ -556,24 +597,21 @@ export function Scene({
           }
         }
 
-        return; // Evaluation complete
+        return;
       }
 
-      // Priority 3: Check if we can throw (not debounced)
+      // Priority 3: Check if we can throw
       if (!diceManagerRef.current.canThrow()) {
         console.log("Cannot throw - debounce active");
         return;
       }
 
-      // Priority 4: Throw dice (either from re-throw queue or fresh)
-      // Count this as an attempt BEFORE throwing
+      // Priority 4: Throw dice
       console.log("🎲 Starting new attempt...");
       onAttempt();
 
-      // Get the camera's current position and direction
       const cameraPosition = camera.position.clone();
 
-      // ALWAYS throw in camera direction (center of screen), not mouse position
       console.log("Throwing from camera look direction");
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
 
@@ -614,9 +652,32 @@ export function Scene({
       coinCount,
       d3Count,
       d4Count,
-      thumbTackCount
+      thumbTackCount,
+      isMobile
     ]
   );
+
+  // Handle click to throw dice or pick up outside dice
+  const handleClick = useCallback(
+    (event: MouseEvent) => {
+      handleThrowOrInteract(event.clientX, event.clientY);
+    },
+    [handleThrowOrInteract]
+  );
+
+  // Handle touch events for mobile
+  const handleTouchThrow = useCallback(
+    (x: number, y: number) => {
+      console.log("📱 Touch throw at:", x, y);
+      handleThrowOrInteract(x, y);
+    },
+    [handleThrowOrInteract]
+  );
+
+  // Use touch input system on mobile
+  useTouchInput({
+    onTouchThrow: isMobile ? handleTouchThrow : undefined
+  });
 
   // Handle automatic dice settling detection and score calculation
   useFrame(() => {

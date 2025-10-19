@@ -11,6 +11,12 @@ import {
 } from "../config/physics.config";
 import { updateCollisionBoundsOffset, COLLISION_BOUNDS_OFFSET, updateReceptacleDimensions, RECEPTACLE_DIMENSIONS } from "../constants/receptacleConfig";
 import { getShowDiceTrayBounds, setShowDiceTrayBounds } from "../config/devState";
+import { isMobileDevice } from "../utils/mobileDetection";
+import {
+  getDeviceOrientationConfig,
+  updateDeviceOrientationConfig,
+  resetDeviceOrientationConfig
+} from "../systems/deviceOrientationControls";
 import "./DevPanel.css";
 
 interface DevPanelProps {
@@ -39,7 +45,7 @@ export function DevPanel({
   onCinematicModeToggle
 }: DevPanelProps) {
   const [visible, setVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState<"status" | "physics" | "collision">("status");
+  const [activeTab, setActiveTab] = useState<"status" | "physics" | "collision" | "performance" | "mobile">("status");
   const [showBoundsDebug, setShowBoundsDebug] = useState(getShowDiceTrayBounds());
   const [, forceUpdate] = useState({});
 
@@ -102,6 +108,12 @@ export function DevPanel({
           onClick={() => setActiveTab("performance")}
         >
           Performance
+        </button>
+        <button
+          className={`dev-tab ${activeTab === "mobile" ? "active" : ""}`}
+          onClick={() => setActiveTab("mobile")}
+        >
+          Mobile
         </button>
       </div>
 
@@ -418,6 +430,110 @@ export function DevPanel({
                   <li>Use instanced rendering</li>
                   <li>Combine similar materials</li>
                   <li>Use texture atlases</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MOBILE TAB */}
+        {activeTab === "mobile" && (
+          <div className="dev-section">
+            <div className="dev-group">
+              <h3>Device Info</h3>
+              <div className="dev-stat">
+                <span className="dev-label">Platform:</span>
+                <span className="dev-value">{isMobileDevice() ? "Mobile" : "Desktop"}</span>
+              </div>
+              <div className="dev-stat">
+                <span className="dev-label">Touch Support:</span>
+                <span className="dev-value">
+                  {'ontouchstart' in window ? "Yes" : "No"}
+                </span>
+              </div>
+              <div className="dev-stat">
+                <span className="dev-label">Gyroscope:</span>
+                <span className="dev-value">
+                  {typeof DeviceOrientationEvent !== 'undefined' ? "Supported" : "Not Supported"}
+                </span>
+              </div>
+              <div className="dev-stat">
+                <span className="dev-label">Screen Size:</span>
+                <span className="dev-value">
+                  {window.innerWidth} x {window.innerHeight}
+                </span>
+              </div>
+            </div>
+
+            <div className="dev-group">
+              <h3>Gyroscope Controls</h3>
+              <p className="dev-help">
+                Adjust sensitivity and behavior of device orientation camera control.
+              </p>
+
+              <Slider
+                label="Sensitivity"
+                value={getDeviceOrientationConfig().sensitivity}
+                min={0.1}
+                max={2.0}
+                step={0.1}
+                onChange={(v) => updateDeviceOrientationConfig({ sensitivity: v })}
+              />
+
+              <Slider
+                label="Smoothing"
+                value={getDeviceOrientationConfig().smoothing}
+                min={0}
+                max={1.0}
+                step={0.05}
+                onChange={(v) => updateDeviceOrientationConfig({ smoothing: v })}
+              />
+
+              <div className="dev-stat" style={{ marginTop: '12px' }}>
+                <span className="dev-label">Invert X-Axis:</span>
+                <button
+                  className={`dev-button small ${getDeviceOrientationConfig().invertX ? "active" : ""}`}
+                  onClick={() => updateDeviceOrientationConfig({
+                    invertX: !getDeviceOrientationConfig().invertX
+                  })}
+                  style={{ marginTop: 0, marginBottom: '8px' }}
+                >
+                  {getDeviceOrientationConfig().invertX ? "ON" : "OFF"}
+                </button>
+              </div>
+
+              <div className="dev-stat">
+                <span className="dev-label">Invert Y-Axis:</span>
+                <button
+                  className={`dev-button small ${getDeviceOrientationConfig().invertY ? "active" : ""}`}
+                  onClick={() => updateDeviceOrientationConfig({
+                    invertY: !getDeviceOrientationConfig().invertY
+                  })}
+                  style={{ marginTop: 0, marginBottom: '8px' }}
+                >
+                  {getDeviceOrientationConfig().invertY ? "ON" : "OFF"}
+                </button>
+              </div>
+
+              <button className="dev-button" onClick={resetDeviceOrientationConfig}>
+                Reset to Defaults
+              </button>
+            </div>
+
+            <div className="dev-group">
+              <h3>Mobile Tips</h3>
+              <div style={{ fontSize: '11px', color: '#a89884', lineHeight: '1.6' }}>
+                <p><strong>Camera Controls:</strong></p>
+                <ul style={{ paddingLeft: '20px', margin: '8px 0' }}>
+                  <li>Tilt device to look around (gyro)</li>
+                  <li>Tap recenter button (🎯) to reset view</li>
+                  <li>Adjust sensitivity if too fast/slow</li>
+                </ul>
+                <p><strong>Gameplay:</strong></p>
+                <ul style={{ paddingLeft: '20px', margin: '8px 0' }}>
+                  <li>Tap screen center to throw dice</li>
+                  <li>Tap settled dice to evaluate roll</li>
+                  <li>Pinch to zoom (browser default)</li>
                 </ul>
               </div>
             </div>

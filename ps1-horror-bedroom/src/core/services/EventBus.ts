@@ -267,9 +267,9 @@ export const eventBus = new EventBus();
  * });
  */
 export const useEventListener = <TPayload = any>(
-  type: GameEventType,
-  handler: EventListener<TPayload>,
-  dependencies: any[] = []
+  _type: GameEventType,
+  _handler: EventListener<TPayload>,
+  _dependencies: any[] = []
 ) => {
   // This will be implemented when we integrate with React
   // For now, it's just a placeholder showing the intended API
@@ -294,7 +294,7 @@ export const waitForEvent = <TPayload = any>(
   timeoutMs?: number
 ): Promise<GameEvent<TPayload>> => {
   return new Promise((resolve, reject) => {
-    let timeoutId: NodeJS.Timeout | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     const subscription = eventBus.once(type, (event) => {
       if (timeoutId) clearTimeout(timeoutId);

@@ -123,7 +123,7 @@ export function DiceInfo({ diceData }: DiceInfoProps) {
           <div className="dice-info-row dice-info-currency">
             <span className="dice-info-label">Currency Earned:</span>
             <span className="dice-info-value dice-currency">
-              ${(diceData.currencyEarned / 100).toFixed(2)}
+              ${((diceData.currencyEarned ?? 0) / 100).toFixed(2)}
             </span>
           </div>
         )}
