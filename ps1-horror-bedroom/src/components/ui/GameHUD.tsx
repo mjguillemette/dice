@@ -9,12 +9,9 @@ interface GameHUDProps {
   timeOfDay: string;
   currentAttempts: number;
   maxAttempts: number;
-  currentScore: number;
-  isSettled: boolean;
   balance: number;
   hoveredDice: DiceData | null;
   onScoreHover?: (diceIds: number[] | null) => void; // NEW: Callback when hovering over a score
-  totalAttempts: number; // Total attempts across all rounds
   dailyTarget: number; // Daily score target
   dailyBestScore: number; // Best score achieved today
   corruption: number; // Corruption level (0-1)
@@ -28,12 +25,9 @@ export function GameHUD({
   timeOfDay,
   currentAttempts,
   maxAttempts,
-  currentScore,
-  isSettled,
   balance,
   hoveredDice,
   onScoreHover,
-  totalAttempts,
   dailyTarget,
   dailyBestScore,
   corruption,
@@ -41,24 +35,20 @@ export function GameHUD({
   daysMarked,
   incenseActive = false
 }: GameHUDProps) {
-  const isLastAttempt = currentAttempts >= maxAttempts;
-
   // --- 💰 Animated Balance State ---
   const [displayBalance, setDisplayBalance] = useState(balance);
   const [gainAmount, setGainAmount] = useState<number | null>(null);
   const [isGaining, setIsGaining] = useState(false);
 
   // --- 🎯 Score Animation State ---
-  const [displayScore, setDisplayScore] = useState(currentScore);
   const [recentlyAchieved, setRecentlyAchieved] = useState<Set<string>>(new Set());
+  const [isMinimized, setIsMinimized] = useState(false);
 
   const prevBalance = useRef(balance);
-  const prevScore = useRef(currentScore);
   const prevScores = useRef<ScoreCategoryData[]>(scores);
   const gainTimeout = useRef<number | null>(null);
   const highlightTimeout = useRef<number | null>(null);
   const intervalRef = useRef<number | null>(null);
-  const scoreIntervalRef = useRef<number | null>(null);
 
   const startTicker = useCallback(
     (amountToAdd: number) => {
@@ -78,33 +68,6 @@ export function GameHUD({
     },
     [balance]
   );
-
-  // Animate current score changes
-  useEffect(() => {
-    const oldScore = prevScore.current;
-    const newScore = currentScore;
-
-    if (newScore !== oldScore) {
-      if (scoreIntervalRef.current) clearInterval(scoreIntervalRef.current);
-
-      const diff = newScore - oldScore;
-      let current = oldScore;
-      const steps = 15;
-      const increment = diff / steps;
-
-      scoreIntervalRef.current = window.setInterval(() => {
-        current += increment;
-        if ((diff > 0 && current >= newScore) || (diff < 0 && current <= newScore)) {
-          setDisplayScore(newScore);
-          if (scoreIntervalRef.current) clearInterval(scoreIntervalRef.current);
-        } else {
-          setDisplayScore(Math.round(current));
-        }
-      }, 30);
-    }
-
-    prevScore.current = newScore;
-  }, [currentScore]);
 
   // Track newly achieved scores for animation
   useEffect(() => {
@@ -155,7 +118,6 @@ export function GameHUD({
   useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      if (scoreIntervalRef.current) clearInterval(scoreIntervalRef.current);
       if (gainTimeout.current) clearTimeout(gainTimeout.current);
       if (highlightTimeout.current) clearTimeout(highlightTimeout.current);
     };
@@ -217,12 +179,21 @@ export function GameHUD({
   return (
     <div className="game-hud">
       {/* Score panel with progress indicator */}
-      <div className="hud-panel hud-scores">
+      <div className={`hud-panel hud-scores ${isMinimized ? "minimized" : ""}`}>
         <div className="hud-header">
-          <h2 className="hud-title">
-            {timeOfDay.toUpperCase()}
-            <span className="day-indicator"> - Day {daysMarked - 1}</span>
-          </h2>
+          <div className="hud-header-top">
+            <h2 className="hud-title">
+              {timeOfDay.toUpperCase()}
+              <span className="day-indicator"> - Day {daysMarked - 1}</span>
+            </h2>
+            <button
+              className="hud-minimize-btn"
+              onClick={() => setIsMinimized(!isMinimized)}
+              title={isMinimized ? "Expand scorecard" : "Minimize scorecard"}
+            >
+              {isMinimized ? "▼" : "▲"}
+            </button>
+          </div>
           <div className="time-progression">
             <span className="time-progress-label">
               {rollsUntilNextPeriod === 3 ? "Time advances in " : ""}
@@ -237,6 +208,24 @@ export function GameHUD({
               ))}
             </div>
           </div>
+
+          {/* Show attempt indicator even when minimized */}
+          <div className="attempt-indicator">
+            <span className="attempt-label">Attempts:</span>
+            <div className="attempt-dots">
+              {[...Array(maxAttempts)].map((_, index) => (
+                <span
+                  key={index}
+                  className={`attempt-dot ${index < currentAttempts ? "used" : ""} ${index === maxAttempts - 1 && index === currentAttempts - 1 ? "critical" : ""}`}
+                >
+                  <span className="dot-inner" />
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {!isMinimized && (
+          <>
           <div className="progress-indicator">
             <div className="progress-bar">
               <div
@@ -274,8 +263,12 @@ export function GameHUD({
               />
             </div>
           </div>
+          </>
+          )}
         </div>
 
+        {!isMinimized && (
+        <>
         {/* Multi-score combo bonus banner */}
         {hasMultiScoreBonus && (
           <div className="multi-score-bonus">
@@ -299,7 +292,7 @@ export function GameHUD({
               score.diceIds.includes(hoveredDice.id);
 
             // Check if this score is from the current throw (not a previous round)
-            const isFromCurrentThrow = score.lastUpdatedAttempt === totalAttempts;
+            const isFromCurrentThrow = score.lastUpdatedAttempt === currentAttempts;
 
             // Check if this score has an incense combo
             const hasCombo = score.comboCount && score.comboCount > 1;
@@ -373,6 +366,8 @@ export function GameHUD({
             );
           })}
         </div>
+          </>
+        )}
 
         <div className="hud-footer">
           <div className="wallet-row">
@@ -392,39 +387,6 @@ export function GameHUD({
                 })}
               </span>
             </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Current attempt panel with enhanced visuals */}
-      <div className="hud-panel hud-attempt">
-        <div className="attempt-score">
-          <div className="attempt-label">CURRENT TOSS</div>
-          <div className={`attempt-value ${isSettled ? "settled" : ""}`}>
-            {displayScore > 0 ? (
-              <span className="score-number">{displayScore}</span>
-            ) : (
-              <span className="score-placeholder">—</span>
-            )}
-          </div>
-        </div>
-
-        <div className={`attempt-tracker ${isLastAttempt ? "critical" : ""}`}>
-          <div className="attempt-counter-label">
-            ATTEMPT {currentAttempts}/{maxAttempts}
-            {isLastAttempt && <span className="warning-badge">FINAL</span>}
-          </div>
-          <div className="attempt-dots">
-            {Array.from({ length: maxAttempts }).map((_, i) => (
-              <div
-                key={i}
-                className={`attempt-dot ${i < currentAttempts ? "used" : ""} ${
-                  i === currentAttempts - 1 && isLastAttempt ? "critical" : ""
-                }`}
-              >
-                <div className="dot-inner" />
-              </div>
-            ))}
           </div>
         </div>
       </div>

@@ -30,6 +30,7 @@ interface DevPanelProps {
   currentAttempts: number;
   gamePhase: GamePhase;
   onCinematicModeToggle?: () => void;
+  onVisibilityChange?: (visible: boolean) => void;
 }
 
 export function DevPanel({
@@ -42,9 +43,16 @@ export function DevPanel({
   successfulRolls,
   currentAttempts,
   gamePhase,
-  onCinematicModeToggle
+  onCinematicModeToggle,
+  onVisibilityChange
 }: DevPanelProps) {
   const [visible, setVisible] = useState(false);
+
+  // Notify parent when visibility changes
+  const toggleVisible = (newVisible: boolean) => {
+    setVisible(newVisible);
+    onVisibilityChange?.(newVisible);
+  };
   const [activeTab, setActiveTab] = useState<"status" | "physics" | "collision" | "performance" | "mobile">("status");
   const [showBoundsDebug, setShowBoundsDebug] = useState(getShowDiceTrayBounds());
   const [, forceUpdate] = useState({});
@@ -68,7 +76,7 @@ export function DevPanel({
   };
 
   useInput({
-    onToggleUI: () => setVisible((prev) => !prev)
+    onToggleUI: () => toggleVisible(!visible)
   });
 
   if (!visible) return null;
@@ -80,7 +88,7 @@ export function DevPanel({
     <div className="dev-panel">
       <div className="dev-panel-header">
         <h2>DEVELOPER TOOLS</h2>
-        <button className="dev-panel-close" onClick={() => setVisible(false)}>×</button>
+        <button className="dev-panel-close" onClick={() => toggleVisible(false)}>×</button>
       </div>
 
       {/* Tab Navigation */}

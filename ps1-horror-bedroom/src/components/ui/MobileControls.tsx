@@ -4,11 +4,13 @@ import "./GameHUD.css";
 interface MobileControlsProps {
   onRecenterGyro?: () => void;
   hasGyroPermission?: boolean;
+  onToggleDevPanel?: () => void;
 }
 
 export function MobileControls({
   onRecenterGyro,
-  hasGyroPermission = false
+  hasGyroPermission = false,
+  onToggleDevPanel
 }: MobileControlsProps) {
   const isMobile = isMobileDevice();
 
@@ -23,6 +25,15 @@ export function MobileControls({
           title="Recenter gyro view"
         >
           🎯
+        </button>
+      )}
+      {onToggleDevPanel && (
+        <button
+          className="mobile-control-btn dev-btn"
+          onClick={onToggleDevPanel}
+          title="Toggle dev tools"
+        >
+          🛠️
         </button>
       )}
     </div>

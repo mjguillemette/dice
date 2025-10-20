@@ -17,8 +17,8 @@ export interface DeviceOrientationConfig {
 
 const DEFAULT_CONFIG: DeviceOrientationConfig = {
   enabled: true,
-  sensitivity: 1.0,
-  smoothing: 0.5,
+  sensitivity: 0.3, // Reduced from 1.0 for slower, more controlled movement
+  smoothing: 0.7, // Increased from 0.5 for smoother movement
   invertX: false,
   invertY: false
 };

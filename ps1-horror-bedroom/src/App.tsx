@@ -71,7 +71,7 @@ function AppContent() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_showCardDebugBounds, _setShowCardDebugBounds] = useState(false);
   const [rollHistory, setRollHistory] = useState<number[]>([]);
-  const [diceSettled, setDiceSettled] = useState(false);
+  const [_diceSettled, setDiceSettled] = useState(false);
   const [hoveredDice, setHoveredDice] = useState<DiceData | null>(null);
   const [hoveredTableItem, setHoveredTableItem] = useState<TableItemData | null>(null);
   const [highlightedDiceIds, setHighlightedDiceIds] = useState<number[]>([]);
@@ -80,6 +80,7 @@ function AppContent() {
   const [hasGyroPermission, setHasGyroPermission] = useState(false);
   const recenterGyroRef = useRef<(() => void) | null>(null);
   const [isCursorLocked, setIsCursorLocked] = useState(false);
+  const [devPanelVisible, setDevPanelVisible] = useState(false);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_spotlightHeight, _setSpotlightHeight] = useState(1.0);
@@ -463,12 +464,9 @@ function AppContent() {
           timeOfDay={gameState.scoring.currentTimeOfDay}
           currentAttempts={gameState.currentAttempts}
           maxAttempts={2}
-          currentScore={diceScore}
-          isSettled={diceSettled}
           balance={balances.cents}
           hoveredDice={hoveredDice}
           onScoreHover={(diceIds) => setHighlightedDiceIds(diceIds || [])}
-          totalAttempts={gameState.totalAttempts}
           dailyTarget={gameState.dailyTarget}
           dailyBestScore={gameState.dailyBestScore}
           corruption={gameState.corruption}
@@ -558,6 +556,7 @@ function AppContent() {
       <MobileControls
         onRecenterGyro={() => recenterGyroRef.current?.()}
         hasGyroPermission={hasGyroPermission}
+        onToggleDevPanel={() => setDevPanelVisible(!devPanelVisible)}
       />
 
       <DevPanel
@@ -571,6 +570,7 @@ function AppContent() {
         currentAttempts={gameState.currentAttempts}
         gamePhase={gameState.phase}
         onCinematicModeToggle={() => setCinematicMode(!cinematicMode)}
+        onVisibilityChange={setDevPanelVisible}
       />
     </div>
   );
