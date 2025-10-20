@@ -15,6 +15,8 @@ import coinTailsTexture from "../../assets/textures/cointails.png";
 import towerTexture from "../../assets/textures/tower.png";
 import sunTexture from "../../assets/textures/sun.png";
 import { Billboard, Text } from "@react-three/drei";
+import { Cigarette } from "./Cigarette";
+import { IncenseStick } from "./IncenseStick";
 
 interface ItemChoiceProps {
   item: ItemDefinition & { price?: number };
@@ -180,7 +182,14 @@ export function ItemChoice({
     let size: [number, number, number];
     let geom: THREE.BufferGeometry;
 
-    if (item.effect.type === "add_dice") {
+    // Special sizes for cigarette and incense
+    if (item.id === "cigarette") {
+      size = [0.055 * BASE_SCALE * 0.6, 0.085 * BASE_SCALE * 0.6, 0.022 * BASE_SCALE * 0.6];
+      geom = new THREE.BoxGeometry(size[0], size[1], size[2]); // Dummy geometry, won't be used
+    } else if (item.id === "incense") {
+      size = [0.1 * BASE_SCALE * 2.5, 0.002 * BASE_SCALE * 2.5, 0.002 * BASE_SCALE * 2.5];
+      geom = new THREE.CylinderGeometry(size[1], size[2], size[0], 6); // Dummy geometry, won't be used
+    } else if (item.effect.type === "add_dice") {
       switch (maxValue) {
         case 1:
           size = [diceSize * 0.5, diceSize * 1.2, diceSize * 0.5];
@@ -217,7 +226,7 @@ export function ItemChoice({
       geom = new THREE.BoxGeometry(size[0], size[1], size[2]);
     }
     return { geometry: geom, itemSize: size };
-  }, [item.effect, maxValue]);
+  }, [item.effect, item.id, maxValue]);
 
   useEffect(() => {
     const handleClick = () => {
@@ -236,8 +245,15 @@ export function ItemChoice({
         setTimeout(() => setIsShaking(false), 400);
       }
     };
+
+    // Listen for both mouse and touch events
     window.addEventListener("mousedown", handleClick);
-    return () => window.removeEventListener("mousedown", handleClick);
+    window.addEventListener("touchstart", handleClick);
+
+    return () => {
+      window.removeEventListener("mousedown", handleClick);
+      window.removeEventListener("touchstart", handleClick);
+    };
   }, [isHovered, isPurchased, isShaking, spendCurrency, onPurchase]);
 
   useFrame((state, delta) => {
@@ -288,25 +304,45 @@ export function ItemChoice({
     );
   });
 
+  // Check if this is a special consumable item that needs its own model
+  const isSpecialConsumable = item.id === "cigarette" || item.id === "incense";
+
   return (
     <group ref={groupRef} position={position}>
-      <mesh
-        geometry={geometry}
-        visible={isHovered && !isPurchased && !isShaking}
-        scale={[OUTLINE_THICKNESS, OUTLINE_THICKNESS, OUTLINE_THICKNESS]}
-      >
-        <meshBasicMaterial color={rarityColor} side={THREE.BackSide} />
-      </mesh>
+      {!isSpecialConsumable && (
+        <>
+          <mesh
+            geometry={geometry}
+            visible={isHovered && !isPurchased && !isShaking}
+            scale={[OUTLINE_THICKNESS, OUTLINE_THICKNESS, OUTLINE_THICKNESS]}
+          >
+            <meshBasicMaterial color={rarityColor} side={THREE.BackSide} />
+          </mesh>
 
-      <RigidBody type="fixed" colliders={false}>
-        <mesh
-          ref={meshRef}
-          geometry={geometry}
-          material={materials}
-          castShadow
-          receiveShadow
-        />
-      </RigidBody>
+          <RigidBody type="fixed" colliders={false}>
+            <mesh
+              ref={meshRef}
+              geometry={geometry}
+              material={materials}
+              castShadow
+              receiveShadow
+            />
+          </RigidBody>
+        </>
+      )}
+
+      {/* Render special consumable models */}
+      {item.id === "cigarette" && (
+        <group ref={meshRef as any} scale={BASE_SCALE * 0.6}>
+          <Cigarette count={1} />
+        </group>
+      )}
+
+      {item.id === "incense" && (
+        <group ref={meshRef as any} scale={BASE_SCALE * 2.5}>
+          <IncenseStick />
+        </group>
+      )}
       {/* Item name label - always shown when hovered */}
       {isHovered && item && (
         <Billboard

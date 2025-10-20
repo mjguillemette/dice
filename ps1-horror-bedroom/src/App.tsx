@@ -78,8 +78,14 @@ function AppContent() {
   const [hoveredTableItem, setHoveredTableItem] = useState<TableItemData | null>(null);
   const [highlightedDiceIds, setHighlightedDiceIds] = useState<number[]>([]);
 
+  // Track previous roll's achieved categories for combo detection
+  const previousAchievedCategories = useRef<Set<string>>(new Set());
+
+  // Track previous roll's full score data for trigger effects
+  const previousScores = useRef<any[]>([]);
+
   // Audio hooks
-  const { playItemHover, playItemSelect, playEndOfDay } = useUISound();
+  const { playItemHover, playItemSelect, playEndOfDay} = useUISound();
 
   // Mobile: Gyroscope controls
   const [hasGyroPermission, setHasGyroPermission] = useState(false);
@@ -282,16 +288,31 @@ function AppContent() {
     // Don't activate if already active or no uses remaining
     if (incenseData.isActive || incenseData.remainingUses === 0) return;
 
-    // Check if any category has a combo (comboCount > 0)
-    const hasCombo = gameState.scoring.currentScores.some(
-      score => score.comboCount && score.comboCount > 0
+    // Get currently achieved categories (excluding highest_total which is always achieved)
+    const currentAchieved = new Set(
+      gameState.scoring.currentScores
+        .filter(score => score.achieved && score.category !== "highest_total")
+        .map(score => score.category)
+    );
+
+    // Check if any current category was also achieved in the previous roll
+    const hasCombo = Array.from(currentAchieved).some(category =>
+      previousAchievedCategories.current.has(category)
     );
 
     if (hasCombo) {
-      console.log("🔥 First combo detected! Auto-activating incense...");
+      console.log("🔥 Combo detected! Auto-activating incense...");
+      console.log("  Previous categories:", Array.from(previousAchievedCategories.current));
+      console.log("  Current categories:", Array.from(currentAchieved));
       const newInventory = activateConsumable(inventory, "incense");
       setInventory(newInventory);
     }
+
+    // Update previous achieved categories for next roll
+    previousAchievedCategories.current = currentAchieved;
+
+    // Also update the full score data for trigger effects
+    previousScores.current = gameState.scoring.currentScores;
   }, [gameState.scoring.currentScores, inventory]);
 
   // Record game over to persistent storage
@@ -572,6 +593,8 @@ function AppContent() {
           highlightedDiceIds={highlightedDiceIds}
           onGyroPermissionChange={setHasGyroPermission}
           onRecenterGyroReady={(fn) => { recenterGyroRef.current = fn; }}
+          currentScores={gameState.scoring.currentScores}
+          previousScores={previousScores.current}
         />
       </Canvas>
 

@@ -17,8 +17,8 @@ export interface DeviceOrientationConfig {
 
 const DEFAULT_CONFIG: DeviceOrientationConfig = {
   enabled: true,
-  sensitivity: 0.3, // Reduced from 1.0 for slower, more controlled movement
-  smoothing: 0.7, // Increased from 0.5 for smoother movement
+  sensitivity: 0.5, // Fine-tuned for responsive but controlled movement
+  smoothing: 0.85, // Higher smoothing for more stable camera
   invertX: false,
   invertY: false
 };
@@ -89,6 +89,10 @@ export const useDeviceOrientation = (params?: UseDeviceOrientationParams | boole
   useEffect(() => {
     if (!enabled || !hasPermission) return;
 
+    // Store the last quaternion for smoothing
+    let lastQuaternion = new THREE.Quaternion();
+    let firstFrame = true;
+
     const handleOrientation = (event: {
       alpha: any;
       beta: any;
@@ -114,8 +118,23 @@ export const useDeviceOrientation = (params?: UseDeviceOrientationParams | boole
         initialOrientationSet = true;
       }
 
-      // Apply the offset to the current orientation
-      orientationRef.current.copy(orientationOffset).multiply(deviceQuaternion);
+      // Create a temporary quaternion with the offset applied
+      const tempQuat = new THREE.Quaternion()
+        .copy(orientationOffset)
+        .multiply(deviceQuaternion);
+
+      // Apply exponential smoothing for more stable output
+      if (firstFrame) {
+        orientationRef.current.copy(tempQuat);
+        lastQuaternion.copy(tempQuat);
+        firstFrame = false;
+      } else {
+        // Smooth the quaternion to reduce jitter
+        const config = getDeviceOrientationConfig();
+        const smoothFactor = config.smoothing * 0.5; // Use half of smoothing for orientation data
+        orientationRef.current.copy(lastQuaternion).slerp(tempQuat, 1 - smoothFactor);
+        lastQuaternion.copy(orientationRef.current);
+      }
 
       // If yaw/pitch refs are provided, extract Euler angles and update them
       if (yawRef && pitchRef) {

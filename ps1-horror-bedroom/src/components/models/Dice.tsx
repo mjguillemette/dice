@@ -31,6 +31,8 @@ import normalTexture6 from "../../assets/textures/normal-6.png";
 import coinHeadsTexture from "../../assets/textures/coinheads.png";
 import coinTailsTexture from "../../assets/textures/cointails.png";
 
+export type TriggerEffectType = "combo" | "edge" | "special" | null;
+
 interface DiceProps {
   position: [number, number, number];
   initialVelocity?: [number, number, number];
@@ -43,6 +45,9 @@ interface DiceProps {
   diceId?: number; // Unique ID for collision detection
   diceType?: string; // Type of dice: "d6", "d4", "d3", "coin", "thumbtack"
   isHovered?: boolean; // Whether the dice is currently being hovered
+
+  // Trigger effects (coins landing on edge, combo triggers, etc.)
+  triggerEffect?: TriggerEffectType;
 
   // Transformation effects
   sizeMultiplier?: number;
@@ -80,6 +85,7 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
       diceId,
       diceType = "d6",
       isHovered = false,
+      triggerEffect = null,
       transformations = [],
       scoreMultiplier = 1.0,
       calculatedScore,
@@ -714,6 +720,26 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
 
     const OUTLINE_THICKNESS = 1.25;
     const isOutlineVisible = isHovered && settled;
+    const hasTriggerEffect = triggerEffect && settled;
+
+    // Determine outline colors based on effect type
+    const getOutlineColors = (): { outer: number; inner: number } => {
+      if (hasTriggerEffect) {
+        switch (triggerEffect) {
+          case "combo":
+            return { outer: 0xff6b4a, inner: 0x4a2018 }; // Orange/red for combos
+          case "edge":
+            return { outer: 0x4aff6b, inner: 0x184a20 }; // Green for edge landing
+          case "special":
+            return { outer: 0x6b4aff, inner: 0x201848 }; // Purple for special triggers
+          default:
+            return { outer: 0xffa724, inner: 0x35322d }; // Default hover color
+        }
+      }
+      return { outer: 0xffa724, inner: 0x35322d }; // Default hover color
+    };
+
+    const outlineColors = getOutlineColors();
 
     return (
       <RigidBody
@@ -735,8 +761,8 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
         {/* Manual collider that scales with animatedScale and matches geometry type */}
         {renderCollider()}
 
-        {/* Outline mesh - only visible when hovered */}
-        {isOutlineVisible && (
+        {/* Outline mesh - visible when hovered OR when trigger effect is active */}
+        {(isOutlineVisible || hasTriggerEffect) && (
           <>
             <mesh
               renderOrder={9999}
@@ -748,9 +774,9 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
             >
               {renderGeometry()}
               <meshBasicMaterial
-                color={0xffa724}
+                color={outlineColors.outer}
                 side={THREE.BackSide}
-                opacity={.4}
+                opacity={hasTriggerEffect ? 0.6 : 0.4}
                 depthTest={false} // 👈 ignores depth buffer
               />
             </mesh>
@@ -764,7 +790,7 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
             >
               {renderGeometry()}
               <meshBasicMaterial
-                color={0x35322d}
+                color={outlineColors.inner}
                 side={THREE.BackSide}
                 depthTest={false} // 👈 ensures always on top
               />

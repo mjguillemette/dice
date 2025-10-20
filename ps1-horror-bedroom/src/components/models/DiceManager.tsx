@@ -7,7 +7,7 @@ import {
   useEffect
 } from "react";
 import * as THREE from "three";
-import Dice, { type DiceHandle } from "./Dice";
+import Dice, { type DiceHandle, type TriggerEffectType } from "./Dice";
 import {
   getReceptacleBounds,
   getTowerCardBounds,
@@ -41,6 +41,7 @@ interface DiceInstance {
   status: DiceStatus;
   transformations: DiceTransformation[]; // Permanent transformations applied to this die
   currencyEarned?: number; // Total currency earned from this die (for coins/nickels)
+  triggerEffect?: TriggerEffectType; // Visual trigger effect (combo, edge, special)
 }
 
 interface DiceManagerProps {
@@ -74,6 +75,8 @@ interface DiceManagerProps {
   onCoinSettled?: (type: string, amount: number) => void;
   hoveredDiceId?: number | null; // ID of the currently hovered dice
   highlightedDiceIds: number[]; // Dice IDs to highlight from scorecard hover
+  currentScores?: any[]; // Current scoring state for trigger detection
+  previousScores?: any[]; // Previous scores for combo detection
 }
 
 export interface SettledDieData {
@@ -153,7 +156,9 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       cardEnabled,
       onCardItemsChange,
       onCoinSettled,
-      hoveredDiceId = null
+      hoveredDiceId = null,
+      currentScores,
+      previousScores
     },
     ref
   ) => {
@@ -1042,6 +1047,88 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       ]
     );
 
+    // Calculate trigger effects for settled dice
+    useEffect(() => {
+      if (!currentScores || !previousScores) return;
+
+      const settledDice = diceInstances.filter(d => d.settled && d.inReceptacle);
+      if (settledDice.length === 0) return;
+
+      // Collect dice IDs that should have trigger effects
+      const comboTriggers = new Set<number>();
+      const highScoreTriggers = new Set<number>();
+      const edgeTriggers = new Set<number>();
+
+      // 1. Check for combo triggers (dice contributing to consecutive achievements)
+      const achievedCategories = new Set(
+        currentScores
+          .filter(s => s.achieved && s.category !== "highest_total")
+          .map(s => s.category)
+      );
+
+      const previousAchievedCategories = new Set(
+        previousScores
+          .filter(s => s.achieved && s.category !== "highest_total")
+          .map(s => s.category)
+      );
+
+      const comboCategories = Array.from(achievedCategories).filter(cat =>
+        previousAchievedCategories.has(cat)
+      );
+
+      if (comboCategories.length > 0) {
+        // Mark all dice in receptacle as combo triggers
+        settledDice.forEach(d => comboTriggers.add(d.id));
+        console.log("🔥 Combo categories:", comboCategories, "- Highlighting dice:", Array.from(comboTriggers));
+      }
+
+      // 2. Check for high score triggers (1.5x better than previous best)
+      currentScores.forEach(currentScore => {
+        if (currentScore.category === "highest_total") return;
+        if (!currentScore.achieved) return;
+
+        const previousScore = previousScores.find(p => p.category === currentScore.category);
+        if (!previousScore || previousScore.score === 0) return;
+
+        const improvement = currentScore.score / previousScore.score;
+        if (improvement >= 1.5) {
+          // Mark dice that contributed to this category
+          if (currentScore.diceIds && currentScore.diceIds.length > 0) {
+            currentScore.diceIds.forEach((id: number) => highScoreTriggers.add(id));
+          }
+          console.log(`⚡ High score! ${currentScore.category}: ${previousScore.score} → ${currentScore.score} (${Math.round(improvement * 100)}%)`)
+;
+        }
+      });
+
+      // 3. Check for edge landing (coins with value 3 = landed on edge)
+      settledDice.forEach(d => {
+        const isCoin = d.type === "coin" || d.type === "loaded_coin" || d.type === "nickel";
+        if (isCoin && d.value === 3) {
+          edgeTriggers.add(d.id);
+          console.log("🎯 Coin landed on edge! ID:", d.id);
+        }
+      });
+
+      // Apply trigger effects to dice instances
+      setDiceInstances(prev => prev.map(d => {
+        if (!d.settled) return d;
+
+        let triggerEffect: TriggerEffectType = null;
+
+        // Priority: edge > high score > combo
+        if (edgeTriggers.has(d.id)) {
+          triggerEffect = "edge";
+        } else if (highScoreTriggers.has(d.id)) {
+          triggerEffect = "special";
+        } else if (comboTriggers.has(d.id)) {
+          triggerEffect = "combo";
+        }
+
+        return { ...d, triggerEffect };
+      }));
+    }, [currentScores, previousScores, diceInstances]);
+
     return (
       <>
         {diceInstances.map((dice) => {
@@ -1099,6 +1186,7 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
               scoreMultiplier={transformationEffects.scoreMultiplier}
               calculatedScore={scoreWithMultiplier}
               currencyEarned={dice.currencyEarned}
+              triggerEffect={dice.triggerEffect}
             />
           );
         })}

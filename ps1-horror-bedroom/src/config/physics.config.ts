@@ -25,17 +25,17 @@ export interface DicePhysicsConfig {
 
 // Default gentle lob physics
 export const DEFAULT_PHYSICS: DicePhysicsConfig = {
-  basePower: 1.4,
-  distanceMultiplier: 0.4,
-  maxDistanceBoost: 1.2,
-  powerVariation: 0.3,
+  basePower: 3.0,
+  distanceMultiplier: .55,
+  maxDistanceBoost: 1.4,
+  powerVariation: 0.44,
 
-  baseUpwardVelocity: -1.2,
-  upwardVariation: 0.2,
+  baseUpwardVelocity: -1,
+  upwardVariation: 0.3,
   arcBoostMultiplier: 0.5,
   maxArcBoost: 0.8,
 
-  angularVelocity: 12,
+  angularVelocity: 16,
 
   gravity: 9.81
 };

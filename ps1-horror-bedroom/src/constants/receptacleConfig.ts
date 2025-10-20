@@ -11,10 +11,10 @@ export const RECEPTACLE_POSITION: [number, number, number] = [0.28, 0.62, 2.2];
 
 // Receptacle dimensions (in meters) - Base values
 const BASE_RECEPTACLE_DIMENSIONS = {
-  width: 1.2,
-  depth: 1.41,
-  baseThickness: 0.0376,
-  wallHeight: 0.086,
+  width: .84,
+  depth: .72,
+  baseThickness: 0.042,
+  wallHeight: 0.1,
   wallThickness: 0.05
 };
 

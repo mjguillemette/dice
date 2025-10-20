@@ -13,7 +13,7 @@ import { type TimeOfDay } from "../systems/gameStateSystem";
 import { getTimeProgressRatio } from "../systems/gameStateSystem";
 import { useInput, useMouseLook } from "../systems/inputSystem";
 import { useTouchInput } from "../systems/touchInputSystem";
-import { useDeviceOrientation } from "../systems/deviceOrientationControls";
+import { useDeviceOrientation, getDeviceOrientationConfig } from "../systems/deviceOrientationControls";
 import { useCorruption } from "../systems/corruptionSystem";
 import { isMobileDevice } from "../utils/mobileDetection";
 import { useGameState } from "../contexts/GameStateContext";
@@ -122,6 +122,8 @@ interface SceneProps {
   highlightedDiceIds: number[]; // NEW: Dice IDs to highlight from scorecard hover
   onGyroPermissionChange?: (hasPermission: boolean) => void; // Mobile: Gyro permission status
   onRecenterGyroReady?: (recenterFn: () => void) => void; // Mobile: Provide recenter function
+  currentScores?: any[]; // Current scoring data for trigger effects
+  previousScores?: any[]; // Previous scoring data for trigger effects
 }
 export function Scene({
   onCameraNameChange,
@@ -177,7 +179,9 @@ export function Scene({
   onDiceHover,
   onTableItemHover,
   highlightedDiceIds,
-  onGyroPermissionChange
+  onGyroPermissionChange,
+  currentScores,
+  previousScores
 }: SceneProps) {
   const { scene, camera, gl } = useThree();
   const { returnToMenu } = useGameState();
@@ -410,8 +414,16 @@ export function Scene({
 
   useFrame(() => {
     if (isGyroEnabled && hasPermission) {
+      // Apply sensitivity and smoothing from config
+      const config = getDeviceOrientationConfig();
+
+      // Create a target quaternion that applies sensitivity
+      const targetQuat = orientationRef.current.clone();
+
       // Smoothly interpolate the camera's rotation towards the device's orientation
-      camera.quaternion.slerp(orientationRef.current, 0.1); // Adjust 0.1 for more/less smoothing
+      // Use inverse of smoothing value (higher smoothing = slower movement)
+      const slerpFactor = THREE.MathUtils.clamp((1 - config.smoothing) * config.sensitivity, 0.05, 0.5);
+      camera.quaternion.slerp(targetQuat, slerpFactor);
     }
   });
   // Track smooth fog color transitions
@@ -933,6 +945,8 @@ export function Scene({
             onCoinSettled={onDieSettledForCurrency}
             hoveredDiceId={hoveredDiceId}
             highlightedDiceIds={highlightedDiceIds}
+            currentScores={currentScores}
+            previousScores={previousScores}
           />
 
           {/* Ground plane - using explicit CuboidCollider */}

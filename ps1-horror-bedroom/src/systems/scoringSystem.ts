@@ -503,7 +503,17 @@ export function updateBestScores(
       // Update if new score is higher
       const existing = updated[existingIndex];
       if (newScore.score > existing.score || (newScore.achieved && !existing.achieved)) {
+        // Replace with new score (which has updated comboCount)
         updated[existingIndex] = newScore;
+      } else {
+        // Keep the best score, but update combo count and achievement status
+        // This ensures combo tracking continues even if score isn't beaten
+        updated[existingIndex] = {
+          ...existing,
+          comboCount: newScore.comboCount,
+          achieved: newScore.achieved,
+          lastUpdatedAttempt: newScore.lastUpdatedAttempt
+        };
       }
     }
   }

@@ -283,9 +283,8 @@
   margin-bottom: 4px;
   -webkit-appearance: none;
   appearance: none;
-  height: 8px;
+  height: 2.6em;
   background: #0f0d0a;
-  border: 2px solid #2a2018;
   border-radius: 0;
   outline: none;
   cursor: pointer;
