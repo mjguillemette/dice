@@ -104,26 +104,31 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
 
     // === AUDIO: Collision sounds ===
     // Balanced thresholds with smart queuing for performance
-    const playTableSound = useCollisionSound({
+    // Memoize configs to prevent recreating callback on every render
+    const tableSoundConfig = useMemo(() => ({
       ...SOUNDS.dice.table,
-      minVelocity: 0.7,
+      minVelocity: 0.3,
       maxVelocity: 8,
       cooldown: 100,
-    });
+    }), []);
 
-    const playDiceSound = useCollisionSound({
+    const diceSoundConfig = useMemo(() => ({
       ...SOUNDS.dice.dice,
-      minVelocity: 0.5,
+      minVelocity: 0.3,
       maxVelocity: 6,
       cooldown: 90,
-    });
+    }), []);
 
-    const playWoodSound = useCollisionSound({
+    const woodSoundConfig = useMemo(() => ({
       ...SOUNDS.dice.wood,
-      minVelocity: 0.6,
+      minVelocity: 0.3,
       maxVelocity: 7,
       cooldown: 100,
-    });
+    }), []);
+
+    const playTableSound = useCollisionSound(tableSoundConfig);
+    const playDiceSound = useCollisionSound(diceSoundConfig);
+    const playWoodSound = useCollisionSound(woodSoundConfig);
 
     // Collision handler - throttled for performance
     const lastCollisionCheck = useRef<number>(0);
@@ -143,7 +148,7 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
       const velocity = getCollisionVelocity(linvel);
 
       // Early exit for very low velocity (performance optimization)
-      if (velocity < 0.5) return;
+      if (velocity < 0.2) return;
 
       // Get collision position
       const position = new THREE.Vector3(

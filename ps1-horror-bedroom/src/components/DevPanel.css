@@ -63,22 +63,41 @@
   display: flex;
   background: #1a1410;
   border-bottom: 2px solid #4a3828;
-  padding: 0 12px;
+  padding: 0 8px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: thin;
+  scrollbar-color: #4a3828 #1a1410;
+}
+
+.dev-panel-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+.dev-panel-tabs::-webkit-scrollbar-track {
+  background: #1a1410;
+}
+
+.dev-panel-tabs::-webkit-scrollbar-thumb {
+  background: #4a3828;
+  border-radius: 0;
 }
 
 .dev-tab {
   background: transparent;
   border: none;
   color: #8a7a6a;
-  padding: 12px 20px;
+  padding: 10px 12px;
   cursor: pointer;
   font-family: 'Courier New', monospace;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: bold;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   border-bottom: 3px solid transparent;
   transition: all 0.2s;
   text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .dev-tab:hover {
@@ -128,10 +147,15 @@
   border: 2px solid #2a2018;
   padding: 16px;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+  margin-bottom: 16px;
+}
+
+.dev-group:last-child {
+  margin-bottom: 0;
 }
 
 .dev-group h3 {
-  margin: 0 0 12px 0;
+  margin: 0 0 16px 0;
   font-size: 13px;
   color: #e8d4b8;
   text-transform: uppercase;
@@ -153,14 +177,26 @@
 }
 
 .dev-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   color: #8a7a6a;
   text-transform: uppercase;
   font-size: 11px;
+  margin-bottom: 8px;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.dev-label:first-child {
+  margin-top: 0;
 }
 
 .dev-value {
   color: #d4c4b0;
   font-weight: bold;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .dev-value.highlight {
@@ -223,6 +259,18 @@
   box-shadow: 0 0 8px rgba(255, 107, 74, 0.3);
 }
 
+.dev-button.dev-button-danger {
+  background: #3a1818;
+  border-color: #ff4a4a;
+  color: #ff6b6b;
+}
+
+.dev-button.dev-button-danger:hover {
+  background: #4a2020;
+  border-color: #ff6b6b;
+  color: #ff8b8b;
+}
+
 .dev-preset-buttons {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -231,7 +279,48 @@
 }
 
 .dev-slider {
-  margin-bottom: 16px;
+  width: 100%;
+  margin-bottom: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  background: #0f0d0a;
+  border: 2px solid #2a2018;
+  border-radius: 0;
+  outline: none;
+  cursor: pointer;
+}
+
+.dev-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: #ff6b4a;
+  border: 2px solid #2a2018;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.2s;
+  box-shadow: 0 0 0 2px #0f0d0a;
+}
+
+.dev-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: #ff6b4a;
+  border: 2px solid #2a2018;
+  border-radius: 0;
+  cursor: pointer;
+  transition: background 0.2s;
+  box-shadow: 0 0 0 2px #0f0d0a;
+}
+
+.dev-slider::-webkit-slider-thumb:hover {
+  background: #ff8568;
+}
+
+.dev-slider::-moz-range-thumb:hover {
+  background: #ff8568;
 }
 
 .dev-slider-header {
@@ -349,6 +438,15 @@
   box-shadow: 0 1px 0 #0f0d0a;
 }
 
+/* Control wrapper for cleaner spacing */
+.dev-control {
+  margin-bottom: 4px;
+}
+
+.dev-control:last-child {
+  margin-bottom: 0;
+}
+
 /* ===== MOBILE RESPONSIVENESS ===== */
 @media (max-width: 768px) {
   .dev-panel {
@@ -424,18 +522,27 @@
     gap: 6px;
   }
 
+  .dev-slider,
   .dev-slider-input {
-    height: 8px; /* Larger touch target */
+    height: 10px; /* Larger touch target */
   }
 
+  .dev-slider::-webkit-slider-thumb,
   .dev-slider-input::-webkit-slider-thumb {
-    width: 20px; /* Larger thumb for touch */
-    height: 20px;
+    width: 22px; /* Larger thumb for touch */
+    height: 22px;
   }
 
+  .dev-slider::-moz-range-thumb,
   .dev-slider-input::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
+  }
+
+  .dev-label {
+    font-size: 10px;
+    margin-bottom: 10px;
+    margin-top: 14px;
   }
 }
 
@@ -462,12 +569,30 @@
     padding: 12px;
   }
 
-  .dev-slider {
-    margin-bottom: 12px;
+  .dev-slider,
+  .dev-slider-input {
+    height: 12px;
+    margin-bottom: 8px;
+  }
+
+  .dev-slider::-webkit-slider-thumb,
+  .dev-slider-input::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+  }
+
+  .dev-slider::-moz-range-thumb,
+  .dev-slider-input::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
   }
 
   .dev-preset-buttons {
     grid-template-columns: 1fr;
+  }
+
+  .dev-label {
+    margin-top: 16px;
   }
 
   .dev-panel-footer {

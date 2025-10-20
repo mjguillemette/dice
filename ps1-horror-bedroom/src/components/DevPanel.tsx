@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useInput } from "../systems/inputSystem";
 import { type GamePhase } from "../systems/gameStateSystem";
 import PerformanceMonitor from "./ui/PerformanceMonitor";
@@ -17,6 +17,7 @@ import {
   updateDeviceOrientationConfig,
   resetDeviceOrientationConfig
 } from "../systems/deviceOrientationControls";
+import { audioManager, type SoundCategory } from "../systems/audioSystem";
 import "./DevPanel.css";
 
 interface DevPanelProps {
@@ -32,6 +33,7 @@ interface DevPanelProps {
   onCinematicModeToggle?: () => void;
   onVisibilityChange?: (visible: boolean) => void;
   externalVisible?: boolean; // Allow parent to control visibility
+  onRecenterGyro?: () => void; // Mobile: Recenter gyroscope
 }
 
 export function DevPanel({
@@ -46,7 +48,8 @@ export function DevPanel({
   gamePhase,
   onCinematicModeToggle,
   onVisibilityChange,
-  externalVisible
+  externalVisible,
+  onRecenterGyro
 }: DevPanelProps) {
   const [visible, setVisible] = useState(false);
 
@@ -62,9 +65,18 @@ export function DevPanel({
     setVisible(newVisible);
     onVisibilityChange?.(newVisible);
   };
-  const [activeTab, setActiveTab] = useState<"status" | "physics" | "collision" | "performance" | "mobile">("status");
+  const [activeTab, setActiveTab] = useState<"status" | "physics" | "collision" | "performance" | "mobile" | "options">("options");
   const [showBoundsDebug, setShowBoundsDebug] = useState(getShowDiceTrayBounds());
   const [, forceUpdate] = useState({});
+
+  // Audio state
+  const audioState = audioManager.getState();
+  const [masterVolume, setMasterVolume] = useState(audioState.masterVolume);
+  const [sfxVolume, setSfxVolume] = useState(audioState.categoryVolumes.sfx);
+  const [uiVolume, setUiVolume] = useState(audioState.categoryVolumes.ui);
+  const [ambientVolume, setAmbientVolume] = useState(audioState.categoryVolumes.ambient);
+  const [musicVolume, setMusicVolume] = useState(audioState.categoryVolumes.music);
+  const [muted, setMuted] = useState(audioState.muted);
 
   // Force re-render every 100ms when dev panel is visible to sync with global configs
   useEffect(() => {
@@ -84,6 +96,37 @@ export function DevPanel({
     setShowDiceTrayBounds(newValue);
   };
 
+  // Audio control handlers
+  const handleMasterVolumeChange = useCallback((value: number) => {
+    setMasterVolume(value);
+    audioManager.setMasterVolume(value);
+  }, []);
+
+  const handleCategoryVolumeChange = useCallback((category: SoundCategory, value: number) => {
+    audioManager.setCategoryVolume(category, value);
+
+    switch (category) {
+      case 'sfx':
+        setSfxVolume(value);
+        break;
+      case 'ui':
+        setUiVolume(value);
+        break;
+      case 'ambient':
+        setAmbientVolume(value);
+        break;
+      case 'music':
+        setMusicVolume(value);
+        break;
+    }
+  }, []);
+
+  const handleMuteToggle = useCallback(() => {
+    const newMuted = !muted;
+    setMuted(newMuted);
+    audioManager.setMuted(newMuted);
+  }, [muted]);
+
   useInput({
     onToggleUI: () => toggleVisible(!visible)
   });
@@ -102,6 +145,12 @@ export function DevPanel({
 
       {/* Tab Navigation */}
       <div className="dev-panel-tabs">
+        <button
+          className={`dev-tab ${activeTab === "options" ? "active" : ""}`}
+          onClick={() => setActiveTab("options")}
+        >
+          ⚙️ Options
+        </button>
         <button
           className={`dev-tab ${activeTab === "status" ? "active" : ""}`}
           onClick={() => setActiveTab("status")}
@@ -135,6 +184,126 @@ export function DevPanel({
       </div>
 
       <div className="dev-panel-content">
+        {/* OPTIONS TAB */}
+        {activeTab === "options" && (
+          <div className="dev-section">
+            <div className="dev-group">
+              <h3>🔊 Audio Settings</h3>
+
+              <label className="dev-label">
+                Master Volume: <span className="dev-value">{Math.round(masterVolume * 100)}%</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={masterVolume}
+                onChange={(e) => handleMasterVolumeChange(parseFloat(e.target.value))}
+                className="dev-slider"
+              />
+
+              <label className="dev-label">
+                Sound Effects: <span className="dev-value">{Math.round(sfxVolume * 100)}%</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={sfxVolume}
+                onChange={(e) => handleCategoryVolumeChange('sfx', parseFloat(e.target.value))}
+                className="dev-slider"
+              />
+
+              <label className="dev-label">
+                UI Sounds: <span className="dev-value">{Math.round(uiVolume * 100)}%</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={uiVolume}
+                onChange={(e) => handleCategoryVolumeChange('ui', parseFloat(e.target.value))}
+                className="dev-slider"
+              />
+
+              <label className="dev-label">
+                Ambient: <span className="dev-value">{Math.round(ambientVolume * 100)}%</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={ambientVolume}
+                onChange={(e) => handleCategoryVolumeChange('ambient', parseFloat(e.target.value))}
+                className="dev-slider"
+              />
+
+              <label className="dev-label">
+                Music: <span className="dev-value">{Math.round(musicVolume * 100)}%</span>
+              </label>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={musicVolume}
+                onChange={(e) => handleCategoryVolumeChange('music', parseFloat(e.target.value))}
+                className="dev-slider"
+              />
+
+              <button
+                className={`dev-button ${muted ? 'dev-button-danger' : ''}`}
+                onClick={handleMuteToggle}
+              >
+                {muted ? '🔇 Unmute All' : '🔊 Mute All'}
+              </button>
+            </div>
+
+            {isMobileDevice() && (
+              <div className="dev-group">
+                <h3>📱 Mobile Controls</h3>
+
+                <label className="dev-label">
+                  Gyro Sensitivity: <span className="dev-value">{getDeviceOrientationConfig().sensitivity.toFixed(1)}x</span>
+                </label>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="2.0"
+                  step="0.1"
+                  value={getDeviceOrientationConfig().sensitivity}
+                  onChange={(e) => updateDeviceOrientationConfig({ sensitivity: parseFloat(e.target.value) })}
+                  className="dev-slider"
+                />
+
+                <label className="dev-label">
+                  Camera Smoothing: <span className="dev-value">{Math.round(getDeviceOrientationConfig().smoothing * 100)}%</span>
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={getDeviceOrientationConfig().smoothing}
+                  onChange={(e) => updateDeviceOrientationConfig({ smoothing: parseFloat(e.target.value) })}
+                  className="dev-slider"
+                />
+
+                <button
+                  className="dev-button"
+                  onClick={() => onRecenterGyro?.()}
+                >
+                  🎯 Recenter View
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* STATUS TAB */}
         {activeTab === "status" && (
           <div className="dev-section">

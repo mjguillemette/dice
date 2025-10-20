@@ -382,6 +382,9 @@ function AppContent() {
             Tap to Start
           </h1>
           <p style={{ opacity: 0.6 }}>Press Enter on desktop</p>
+          <p style={{ opacity: 0.5, marginTop: "2rem", fontSize: "0.9rem" }}>
+            Press ESC for options
+          </p>
         </div>
       )}
 
@@ -591,6 +594,7 @@ function AppContent() {
         onCinematicModeToggle={() => setCinematicMode(!cinematicMode)}
         onVisibilityChange={setDevPanelVisible}
         externalVisible={devPanelVisible}
+        onRecenterGyro={() => recenterGyroRef.current?.()}
       />
     </div>
   );

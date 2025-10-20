@@ -44,15 +44,13 @@ export function useInput(
         return; // Prevent other inputs in menu
       }
 
-      // Exit to menu with Escape (only during gameplay)
-      if (gameState && gameState.phase !== 'menu' && e.code === 'Escape') {
-        callbacks.onExitToMenu?.();
-        // Release pointer lock when exiting
-        exitPointerLock();
+      // Toggle dev panel with Escape (during gameplay or menu)
+      if (e.code === 'Escape') {
+        callbacks.onToggleUI?.();
         return;
       }
 
-      // UI controls can always be active
+      // H key also toggles UI for dev access
       if (e.code === 'KeyH') {
         callbacks.onToggleUI?.();
       }

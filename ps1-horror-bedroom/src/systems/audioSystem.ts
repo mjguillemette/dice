@@ -10,7 +10,7 @@
  * - Easy-to-use hook API
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import * as THREE from 'three';
 import { createPlaceholderSounds } from '../utils/generatePlaceholderSounds';
 
@@ -211,10 +211,19 @@ class AudioManager {
 
     // Auto-cleanup when finished
     if (!config.loop) {
-      sound.onEnded = () => {
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
         this.activeSoundCount--;
         sound.disconnect();
       };
+
+      sound.onEnded = cleanup;
+
+      // Fallback timeout in case onEnded doesn't fire (THREE.js bug)
+      const duration = buffer.duration || 1.0;
+      setTimeout(cleanup, (duration + 0.1) * 1000);
     }
 
     return sound;
@@ -258,10 +267,20 @@ class AudioManager {
 
     // Auto-cleanup when finished
     if (!config.loop) {
-      sound.onEnded = () => {
+      let cleaned = false;
+      const cleanup = () => {
+        if (cleaned) return;
+        cleaned = true;
         this.activeSoundCount--;
         sound.disconnect();
       };
+
+      sound.onEnded = cleanup;
+
+      // Fallback timeout in case onEnded doesn't fire (THREE.js bug)
+      // Collision sounds are very short, so use buffer duration
+      const duration = buffer.duration || 0.2;
+      setTimeout(cleanup, (duration + 0.05) * 1000);
     }
 
     return sound;
@@ -381,13 +400,17 @@ export function useCollisionSound(config: CollisionSoundConfig) {
   const soundQueueRef = useRef<{ position: THREE.Vector3; velocity: number } | null>(null);
   const { playPositional } = useSound();
 
+  // Memoize the config values to prevent dependency changes
+  const cooldown = useMemo(() => config.cooldown || 100, [config.cooldown]);
+  const minVel = useMemo(() => config.minVelocity || 0.5, [config.minVelocity]);
+  const maxVel = useMemo(() => config.maxVelocity || 10, [config.maxVelocity]);
+  const baseVolume = useMemo(() => config.volume || 0.5, [config.volume]);
+
   const playCollisionSound = useCallback(
     (position: THREE.Vector3, velocity: number) => {
       const now = Date.now();
-      const cooldown = config.cooldown || 100;
 
       // Check minimum velocity (early exit for performance)
-      const minVel = config.minVelocity || 0.5;
       if (velocity < minVel) {
         return;
       }
@@ -411,9 +434,7 @@ export function useCollisionSound(config: CollisionSoundConfig) {
       soundQueueRef.current = null;
 
       // Scale volume based on velocity (capped for performance)
-      const maxVel = config.maxVelocity || 10;
       const velocityFactor = Math.min(finalVelocity / maxVel, 1);
-      const baseVolume = config.volume || 0.5;
 
       // Play sound with velocity-scaled volume
       playPositional(
@@ -426,7 +447,7 @@ export function useCollisionSound(config: CollisionSoundConfig) {
 
       lastPlayTime.current = now;
     },
-    [config, playPositional]
+    [config, cooldown, minVel, maxVel, baseVolume, playPositional]
   );
 
   return playCollisionSound;
