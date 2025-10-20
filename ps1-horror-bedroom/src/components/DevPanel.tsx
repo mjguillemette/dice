@@ -31,6 +31,7 @@ interface DevPanelProps {
   gamePhase: GamePhase;
   onCinematicModeToggle?: () => void;
   onVisibilityChange?: (visible: boolean) => void;
+  externalVisible?: boolean; // Allow parent to control visibility
 }
 
 export function DevPanel({
@@ -44,9 +45,17 @@ export function DevPanel({
   currentAttempts,
   gamePhase,
   onCinematicModeToggle,
-  onVisibilityChange
+  onVisibilityChange,
+  externalVisible
 }: DevPanelProps) {
   const [visible, setVisible] = useState(false);
+
+  // Sync with external visibility control
+  useEffect(() => {
+    if (externalVisible !== undefined && externalVisible !== visible) {
+      setVisible(externalVisible);
+    }
+  }, [externalVisible, visible]);
 
   // Notify parent when visibility changes
   const toggleVisible = (newVisible: boolean) => {

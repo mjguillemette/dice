@@ -7,6 +7,7 @@ import GameHUD from "./components/ui/GameHUD";
 import { type DiceData } from "./components/ui/DiceInfo";
 import TableItemInfo, { type TableItemData } from "./components/ui/TableItemInfo";
 import MobileControls from "./components/ui/MobileControls";
+import { isMobileDevice } from "./utils/mobileDetection";
 import { useWallet } from "./hooks/useWallet";
 import { usePersistence } from "./hooks/usePersistence";
 import { GameStateProvider, useGameState } from "./contexts/GameStateContext";
@@ -81,6 +82,7 @@ function AppContent() {
   const recenterGyroRef = useRef<(() => void) | null>(null);
   const [isCursorLocked, setIsCursorLocked] = useState(false);
   const [devPanelVisible, setDevPanelVisible] = useState(false);
+  const isMobile = useState(() => isMobileDevice())[0];
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_spotlightHeight, _setSpotlightHeight] = useState(1.0);
@@ -428,10 +430,11 @@ function AppContent() {
         </div>
       )}
 
-      {/* Cursor Unlock Overlay - shown when cursor is not locked during gameplay */}
-      {!isCursorLocked && gameState.phase !== "menu" && !gameState.isGameOver && (
+      {/* Cursor Unlock Overlay - shown when cursor is not locked during gameplay (desktop only) */}
+      {!isMobile && !isCursorLocked && gameState.phase !== "menu" && !gameState.isGameOver && (
         <div
           className="cursor-unlock-overlay"
+          onClick={() => document.body.requestPointerLock()}
           style={{
             position: "absolute",
             top: 0,
@@ -447,13 +450,13 @@ function AppContent() {
             textAlign: "center",
             fontFamily: "monospace",
             zIndex: 100,
-            pointerEvents: "none"
+            cursor: "pointer"
           }}
         >
           <h2 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>
             Paused
           </h2>
-          <p style={{ opacity: 0.8 }}>Press Enter to continue</p>
+          <p style={{ opacity: 0.8 }}>Press Enter or click to continue</p>
         </div>
       )}
 
@@ -571,6 +574,7 @@ function AppContent() {
         gamePhase={gameState.phase}
         onCinematicModeToggle={() => setCinematicMode(!cinematicMode)}
         onVisibilityChange={setDevPanelVisible}
+        externalVisible={devPanelVisible}
       />
     </div>
   );

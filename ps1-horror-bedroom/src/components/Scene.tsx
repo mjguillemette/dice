@@ -386,7 +386,7 @@ export function Scene({
   useMouseLook(handleMouseMove, gameState.phase !== "menu" && !isStarting);
 
   // Device orientation controls for mobile
-  const { hasPermission: hasGyroPermission, recenter: recenterGyro } = useDeviceOrientation({
+  const { hasPermission: _hasGyroPermission, recenter: recenterGyro } = useDeviceOrientation({
     yawRef,
     pitchRef,
     enabled: isMobile && gameState.phase !== "menu" && !isStarting,
@@ -396,12 +396,12 @@ export function Scene({
     }
   });
 
-  // Expose recenter function to parent
+  // Expose recenter function to parent (always expose it so button can be ready)
   useEffect(() => {
-    if (isMobile && hasGyroPermission) {
+    if (isMobile) {
       onRecenterGyroReady?.(recenterGyro);
     }
-  }, [isMobile, hasGyroPermission, recenterGyro, onRecenterGyroReady]);
+  }, [isMobile, recenterGyro, onRecenterGyroReady]);
 
   // Track smooth fog color transitions
   const targetFogColorRef = useRef<THREE.Color>(new THREE.Color(TIME_OF_DAY_CONFIG[timeOfDay].fogColor));
