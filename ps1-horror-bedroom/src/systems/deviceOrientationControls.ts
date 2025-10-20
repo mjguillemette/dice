@@ -48,7 +48,21 @@ const euler = new THREE.Euler();
 let orientationOffset = new THREE.Quaternion();
 let initialOrientationSet = false;
 
-export const useDeviceOrientation = (enabled = true) => {
+interface UseDeviceOrientationParams {
+  yawRef?: React.RefObject<number>;
+  pitchRef?: React.RefObject<number>;
+  enabled?: boolean;
+  onPermissionChange?: (granted: boolean) => void;
+}
+
+export const useDeviceOrientation = (params?: UseDeviceOrientationParams | boolean) => {
+  // Support both old boolean API and new object API
+  const config: UseDeviceOrientationParams = typeof params === 'boolean'
+    ? { enabled: params }
+    : params || {};
+
+  const { yawRef, pitchRef, enabled = true, onPermissionChange } = config;
+
   const [hasPermission, setHasPermission] = useState(false);
   const [isSupported, setIsSupported] = useState(false);
   // We'll return a stable ref to the quaternion to avoid re-renders
@@ -66,10 +80,11 @@ export const useDeviceOrientation = (enabled = true) => {
 
       const granted = await requestGyroscopePermission();
       setHasPermission(granted);
+      onPermissionChange?.(granted);
     };
 
     checkSupportAndPermission();
-  }, [enabled]);
+  }, [enabled, onPermissionChange]);
 
   useEffect(() => {
     if (!enabled || !hasPermission) return;
@@ -101,6 +116,13 @@ export const useDeviceOrientation = (enabled = true) => {
 
       // Apply the offset to the current orientation
       orientationRef.current.copy(orientationOffset).multiply(deviceQuaternion);
+
+      // If yaw/pitch refs are provided, extract Euler angles and update them
+      if (yawRef && pitchRef) {
+        const eulerFromQuat = new THREE.Euler().setFromQuaternion(orientationRef.current, 'YXZ');
+        yawRef.current = eulerFromQuat.y;
+        pitchRef.current = eulerFromQuat.x;
+      }
     };
 
     window.addEventListener("deviceorientation", handleOrientation);
@@ -108,7 +130,7 @@ export const useDeviceOrientation = (enabled = true) => {
     return () => {
       window.removeEventListener("deviceorientation", handleOrientation);
     };
-  }, [enabled, hasPermission]);
+  }, [enabled, hasPermission, yawRef, pitchRef]);
 
   const recenter = () => {
     console.log("📱 Recalibrating orientation...");

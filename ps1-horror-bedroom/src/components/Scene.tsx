@@ -177,8 +177,7 @@ export function Scene({
   onDiceHover,
   onTableItemHover,
   highlightedDiceIds,
-  onGyroPermissionChange,
-  onRecenterGyroReady
+  onGyroPermissionChange
 }: SceneProps) {
   const { scene, camera, gl } = useThree();
   const { returnToMenu } = useGameState();
@@ -291,7 +290,11 @@ export function Scene({
   // Reset dice when game resets after game over
   useEffect(() => {
     // Detect fresh game start: phase is idle and day is 2 (start of new game)
-    if (gameState.phase === "idle" && gameState.daysMarked === 2 && diceManagerRef.current) {
+    if (
+      gameState.phase === "idle" &&
+      gameState.daysMarked === 2 &&
+      diceManagerRef.current
+    ) {
       console.log("🎲 Game reset detected - clearing all dice");
       diceManagerRef.current.resetDice();
     }
@@ -388,28 +391,36 @@ export function Scene({
 
   // Disable mouse look during menu OR during the initial starting transition
   useMouseLook(handleMouseMove, gameState.phase !== "menu" && !isStarting);
-
+  const isGyroEnabled = isMobile && gameState.phase !== "menu" && !isStarting;
   // Device orientation controls for mobile
-  const { hasPermission: _hasGyroPermission, recenter: recenterGyro } = useDeviceOrientation({
-    yawRef,
-    pitchRef,
-    enabled: isMobile && gameState.phase !== "menu" && !isStarting,
-    onPermissionChange: (granted) => {
-      console.log('📱 Gyroscope permission:', granted ? 'granted' : 'denied');
-      onGyroPermissionChange?.(granted);
-    }
-  });
+  const { orientationRef, hasPermission, isSupported } =
+    useDeviceOrientation(isGyroEnabled);
 
   // Expose recenter function to parent (always expose it so button can be ready)
   useEffect(() => {
-    if (isMobile) {
-      onRecenterGyroReady?.(recenterGyro);
+    // This will run whenever hasPermission changes after the initial check
+    if (isSupported) {
+      console.log(
+        "📱 Gyroscope permission:",
+        hasPermission ? "granted" : "denied"
+      );
+      onGyroPermissionChange?.(hasPermission);
     }
-  }, [isMobile, recenterGyro, onRecenterGyroReady]);
+  }, [hasPermission, isSupported, onGyroPermissionChange]);
 
+  useFrame(() => {
+    if (isGyroEnabled && hasPermission) {
+      // Smoothly interpolate the camera's rotation towards the device's orientation
+      camera.quaternion.slerp(orientationRef.current, 0.1); // Adjust 0.1 for more/less smoothing
+    }
+  });
   // Track smooth fog color transitions
-  const targetFogColorRef = useRef<THREE.Color>(new THREE.Color(TIME_OF_DAY_CONFIG[timeOfDay].fogColor));
-  const currentFogColorRef = useRef<THREE.Color>(new THREE.Color(TIME_OF_DAY_CONFIG[timeOfDay].fogColor));
+  const targetFogColorRef = useRef<THREE.Color>(
+    new THREE.Color(TIME_OF_DAY_CONFIG[timeOfDay].fogColor)
+  );
+  const currentFogColorRef = useRef<THREE.Color>(
+    new THREE.Color(TIME_OF_DAY_CONFIG[timeOfDay].fogColor)
+  );
 
   // Update target fog color when time of day or corruption changes
   useEffect(() => {
@@ -464,7 +475,11 @@ export function Scene({
     if (scene.fog) {
       (scene.fog as THREE.Fog).color.copy(currentFogColorRef.current);
     } else {
-      scene.fog = new THREE.Fog(currentFogColorRef.current, FOG_CONFIG.near, FOG_CONFIG.far);
+      scene.fog = new THREE.Fog(
+        currentFogColorRef.current,
+        FOG_CONFIG.near,
+        FOG_CONFIG.far
+      );
     }
 
     scene.background = currentFogColorRef.current;
@@ -500,8 +515,27 @@ export function Scene({
         rigged_die: riggedDieCount
       });
     }
-  }, [diceCount, coinCount, nickelCount, d3Count, d4Count, d8Count, d10Count, d12Count, d20Count, thumbTackCount,
-      goldenPyramidCount, caltropCount, casinoRejectCount, weightedDieCount, loadedCoinCount, cursedDieCount, splitDieCount, mirrorDieCount, riggedDieCount]);
+  }, [
+    diceCount,
+    coinCount,
+    nickelCount,
+    d3Count,
+    d4Count,
+    d8Count,
+    d10Count,
+    d12Count,
+    d20Count,
+    thumbTackCount,
+    goldenPyramidCount,
+    caltropCount,
+    casinoRejectCount,
+    weightedDieCount,
+    loadedCoinCount,
+    cursedDieCount,
+    splitDieCount,
+    mirrorDieCount,
+    riggedDieCount
+  ]);
 
   // Unified dice throwing/interaction handler (works for both mouse and touch)
   const handleThrowOrInteract = useCallback(
@@ -526,7 +560,10 @@ export function Scene({
       }
 
       if (gameState.phase === "menu" || gameState.phase === "item_selection") {
-        console.log("❌ Wrong game phase - ignoring interaction:", gameState.phase);
+        console.log(
+          "❌ Wrong game phase - ignoring interaction:",
+          gameState.phase
+        );
         return;
       }
 
@@ -638,7 +675,12 @@ export function Scene({
           "direction:",
           cameraDirection
         );
-        diceManagerRef.current.throwDice(intersectPoint, cameraPosition, undefined, cameraDirection);
+        diceManagerRef.current.throwDice(
+          intersectPoint,
+          cameraPosition,
+          undefined,
+          cameraDirection
+        );
       }
     },
     [
@@ -1045,7 +1087,7 @@ export function Scene({
             <ItemChoice
               key={`reward-${index}`}
               item={item}
-              position={[-2.525 + index * 0.33, .72, 4.1]}
+              position={[-2.525 + index * 0.33, 0.72, 4.1]}
               onPurchase={() => onItemSelected(item)}
               spendCurrency={() => true}
             />
@@ -1073,7 +1115,7 @@ export function Scene({
       {inventory.passiveEffects.cigarette > 0 && (
         <Cigarette
           position={[
-            RECEPTACLE_POSITION[0] - .666,
+            RECEPTACLE_POSITION[0] - 0.666,
             RECEPTACLE_POSITION[1] + 0.12,
             RECEPTACLE_POSITION[2] - 0.22
           ]}
@@ -1092,9 +1134,9 @@ export function Scene({
           position={[
             RECEPTACLE_POSITION[0] + 0.456,
             RECEPTACLE_POSITION[1] + 0.2,
-            RECEPTACLE_POSITION[2] - .249
+            RECEPTACLE_POSITION[2] - 0.249
           ]}
-          rotation={[-Math.PI /  -2.3, .6, Math.PI / 4]}
+          rotation={[-Math.PI / -2.3, 0.6, Math.PI / 4]}
           scale={2.66}
           isActive={isConsumableActive(inventory, "incense")}
           onHover={(isHovered) =>

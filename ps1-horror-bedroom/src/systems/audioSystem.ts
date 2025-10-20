@@ -104,6 +104,8 @@ class AudioManager {
   private placeholderBuffers: Map<string, AudioBuffer> = new Map();
   private activeSounds: Map<string, THREE.Audio | THREE.PositionalAudio> = new Map();
   private usePlaceholders: boolean = true; // Use generated sounds by default
+  private maxSimultaneousSounds: number = 8; // Limit concurrent sounds for performance
+  private activeSoundCount: number = 0;
 
   // Volume controls per category
   private categoryVolumes: Record<SoundCategory, number> = {
@@ -186,6 +188,11 @@ class AudioManager {
   async playSound(config: SoundConfig): Promise<THREE.Audio | null> {
     if (!this.listener || this.muted) return null;
 
+    // Limit simultaneous sounds for performance
+    if (this.activeSoundCount >= this.maxSimultaneousSounds && config.category === 'sfx') {
+      return null;
+    }
+
     const buffer = await this.loadSound(config.src);
     if (!buffer) return null;
 
@@ -200,10 +207,12 @@ class AudioManager {
     sound.setPlaybackRate(config.playbackRate || 1.0);
 
     sound.play();
+    this.activeSoundCount++;
 
     // Auto-cleanup when finished
     if (!config.loop) {
       sound.onEnded = () => {
+        this.activeSoundCount--;
         sound.disconnect();
       };
     }
@@ -219,6 +228,11 @@ class AudioManager {
     position: THREE.Vector3
   ): Promise<THREE.PositionalAudio | null> {
     if (!this.listener || this.muted) return null;
+
+    // Limit simultaneous sounds for performance
+    if (this.activeSoundCount >= this.maxSimultaneousSounds && config.category === 'sfx') {
+      return null;
+    }
 
     const buffer = await this.loadSound(config.src);
     if (!buffer) return null;
@@ -240,10 +254,12 @@ class AudioManager {
     sound.position.copy(position);
 
     sound.play();
+    this.activeSoundCount++;
 
     // Auto-cleanup when finished
     if (!config.loop) {
       sound.onEnded = () => {
+        this.activeSoundCount--;
         sound.disconnect();
       };
     }

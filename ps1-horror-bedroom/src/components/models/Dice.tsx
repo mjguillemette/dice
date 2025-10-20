@@ -4,7 +4,8 @@ import {
   useState,
   forwardRef,
   useImperativeHandle,
-  useMemo
+  useMemo,
+  useCallback
 } from "react";
 import {
   RigidBody,
@@ -102,36 +103,47 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
     const currentScaleRef = useRef(1.0);
 
     // === AUDIO: Collision sounds ===
-    // Increased cooldowns and velocity thresholds for better performance
+    // Balanced thresholds with smart queuing for performance
     const playTableSound = useCollisionSound({
       ...SOUNDS.dice.table,
-      minVelocity: 1.0, // Increased from 0.5
+      minVelocity: 0.7,
       maxVelocity: 8,
-      cooldown: 150, // Increased from 100ms
+      cooldown: 100,
     });
 
     const playDiceSound = useCollisionSound({
       ...SOUNDS.dice.dice,
-      minVelocity: 0.8, // Increased from 0.3
+      minVelocity: 0.5,
       maxVelocity: 6,
-      cooldown: 120, // Increased from 80ms
+      cooldown: 90,
     });
 
     const playWoodSound = useCollisionSound({
       ...SOUNDS.dice.wood,
-      minVelocity: 0.9, // Increased from 0.4
+      minVelocity: 0.6,
       maxVelocity: 7,
-      cooldown: 150, // Increased from 100ms
+      cooldown: 100,
     });
 
-    // Collision handler
-    const handleCollision: CollisionEnterHandler = (event) => {
+    // Collision handler - throttled for performance
+    const lastCollisionCheck = useRef<number>(0);
+    const handleCollision: CollisionEnterHandler = useCallback((event) => {
+      // Throttle collision checks to max 60 per second per dice
+      const now = performance.now();
+      if (now - lastCollisionCheck.current < 16) { // ~60fps throttle
+        return;
+      }
+      lastCollisionCheck.current = now;
+
       const rigidBody = rigidBodyRef.current;
       if (!rigidBody) return;
 
       // Get velocity magnitude
       const linvel = rigidBody.linvel();
       const velocity = getCollisionVelocity(linvel);
+
+      // Early exit for very low velocity (performance optimization)
+      if (velocity < 0.5) return;
 
       // Get collision position
       const position = new THREE.Vector3(
@@ -155,7 +167,7 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
         // Default: table/floor/wall collision
         playTableSound(position, velocity);
       }
-    };
+    }, [playDiceSound, playTableSound, playWoodSound]);
 
     // Expose methods to parent
     useImperativeHandle(ref, () => ({
@@ -710,7 +722,7 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
         mass={0.066 * massMultiplier} // Apply mass multiplier from transformations
         colliders={false} // Disable auto colliders - we'll manually add scaled collider
         enabledRotations={[true, true, true]}
-        ccd={false} // Disable CCD for better performance (dice are slow enough)
+        ccd={true} // Keep CCD for accurate collisions
         canSleep={true} // Allow physics engine to sleep settled dice
         onCollisionEnter={handleCollision}
         userData={{ diceId, isDice: true }}
