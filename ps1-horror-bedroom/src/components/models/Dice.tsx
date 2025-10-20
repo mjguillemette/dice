@@ -15,6 +15,8 @@ import {
 } from "@react-three/rapier";
 import { useFrame, useLoader } from "@react-three/fiber";
 import * as THREE from "three";
+import { useCollisionSound, SOUNDS, getCollisionVelocity } from "../../systems/audioSystem";
+import type { CollisionEnterHandler } from "@react-three/rapier";
 
 // Import dice textures
 import normalTexture1 from "../../assets/textures/normal-1.png";
@@ -99,6 +101,62 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
     const targetScaleRef = useRef(sizeMultiplier);
     const currentScaleRef = useRef(1.0);
 
+    // === AUDIO: Collision sounds ===
+    // Increased cooldowns and velocity thresholds for better performance
+    const playTableSound = useCollisionSound({
+      ...SOUNDS.dice.table,
+      minVelocity: 1.0, // Increased from 0.5
+      maxVelocity: 8,
+      cooldown: 150, // Increased from 100ms
+    });
+
+    const playDiceSound = useCollisionSound({
+      ...SOUNDS.dice.dice,
+      minVelocity: 0.8, // Increased from 0.3
+      maxVelocity: 6,
+      cooldown: 120, // Increased from 80ms
+    });
+
+    const playWoodSound = useCollisionSound({
+      ...SOUNDS.dice.wood,
+      minVelocity: 0.9, // Increased from 0.4
+      maxVelocity: 7,
+      cooldown: 150, // Increased from 100ms
+    });
+
+    // Collision handler
+    const handleCollision: CollisionEnterHandler = (event) => {
+      const rigidBody = rigidBodyRef.current;
+      if (!rigidBody) return;
+
+      // Get velocity magnitude
+      const linvel = rigidBody.linvel();
+      const velocity = getCollisionVelocity(linvel);
+
+      // Get collision position
+      const position = new THREE.Vector3(
+        rigidBody.translation().x,
+        rigidBody.translation().y,
+        rigidBody.translation().z
+      );
+
+      // Get userData from the other rigid body (@react-three/rapier stores it here)
+      const otherRigidBody = event.other.rigidBody;
+      const otherUserData = (otherRigidBody as any)?.userData;
+
+      // Check what we collided with
+      if (otherUserData?.isDice) {
+        // Collided with another dice
+        playDiceSound(position, velocity);
+      } else if (otherUserData?.type === 'furniture') {
+        // Collided with furniture (wood)
+        playWoodSound(position, velocity);
+      } else {
+        // Default: table/floor/wall collision
+        playTableSound(position, velocity);
+      }
+    };
+
     // Expose methods to parent
     useImperativeHandle(ref, () => ({
       getValue: () => diceValue,
@@ -113,11 +171,6 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
           "with velocity:",
           initialVelocity
         );
-
-        // Store dice ID in userData for collision detection
-        if (diceId !== undefined) {
-          (rigidBodyRef.current as any).userData = { diceId };
-        }
 
         rigidBodyRef.current.setLinvel(
           {
@@ -212,6 +265,9 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
         setSettled(true);
         hasSettledRef.current = true;
 
+        // Put dice to sleep to save physics calculations
+        rigidBodyRef.current.sleep();
+
         // Calculate which face is up
         const rotation = rigidBodyRef.current.rotation();
         const quaternion = new THREE.Quaternion(
@@ -258,6 +314,9 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
         if (settledTimeRef.current > 0.3 && !hasSettledRef.current) {
           setSettled(true);
           hasSettledRef.current = true;
+
+          // Put dice to sleep to save physics calculations
+          rigidBodyRef.current.sleep();
 
           // Calculate which face is up
           const rotation = rigidBodyRef.current.rotation();
@@ -651,7 +710,10 @@ const Dice = forwardRef<DiceHandle, DiceProps>(
         mass={0.066 * massMultiplier} // Apply mass multiplier from transformations
         colliders={false} // Disable auto colliders - we'll manually add scaled collider
         enabledRotations={[true, true, true]}
-        ccd={true}
+        ccd={false} // Disable CCD for better performance (dice are slow enough)
+        canSleep={true} // Allow physics engine to sleep settled dice
+        onCollisionEnter={handleCollision}
+        userData={{ diceId, isDice: true }}
       >
         {/* Manual collider that scales with animatedScale and matches geometry type */}
         {renderCollider()}

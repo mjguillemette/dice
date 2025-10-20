@@ -17,6 +17,7 @@ import { useDeviceOrientation } from "../systems/deviceOrientationControls";
 import { useCorruption } from "../systems/corruptionSystem";
 import { isMobileDevice } from "../utils/mobileDetection";
 import { useGameState } from "../contexts/GameStateContext";
+import { useAudioSystem } from "../systems/audioSystem";
 import CameraSystem from "./camera/CameraSystem";
 import LightingRig from "./lighting/LightingRig";
 import Room from "./models/Room";
@@ -186,6 +187,9 @@ export function Scene({
 
   // Detect if on mobile device
   const [isMobile] = useState(() => isMobileDevice());
+
+  // Initialize audio system
+  useAudioSystem(camera);
 
   useEffect(() => {
     // Only trigger the starting animation when transitioning from menu to idle (first time)
@@ -853,8 +857,12 @@ export function Scene({
       />
       <primitive object={tray.scene} position={RECEPTACLE_POSITION} scale={1} />
       <Suspense fallback={null}>
-        {/* Physics world for dice */}
-        <Physics gravity={[0, -9.66, 0]}>
+        {/* Physics world for dice - optimized for performance */}
+        <Physics
+          gravity={[0, -9.66, 0]}
+          timeStep={1 / 60} // Fixed timestep for consistency
+          paused={gameState.phase === "menu"} // Pause physics in menu
+        >
           <DiceManager
             ref={diceManagerRef}
             diceCount={diceCount}

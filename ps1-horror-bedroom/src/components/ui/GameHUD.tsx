@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import type { ScoreCategoryData } from "../../systems/scoringSystem";
 import { getCategoryDisplayName } from "../../systems/scoringSystem";
 import type { DiceData } from "./DiceInfo";
+import { useUISound } from "../../systems/audioSystem";
 import "./GameHUD.css";
 
 interface GameHUDProps {
@@ -44,6 +45,9 @@ export function GameHUD({
   const [recentlyAchieved, setRecentlyAchieved] = useState<Set<string>>(new Set());
   const [isMinimized, setIsMinimized] = useState(false);
 
+  // --- 🔊 Audio ---
+  const { playScore, playMoneyGain } = useUISound();
+
   const prevBalance = useRef(balance);
   const prevScores = useRef<ScoreCategoryData[]>(scores);
   const gainTimeout = useRef<number | null>(null);
@@ -72,7 +76,7 @@ export function GameHUD({
   // Track newly achieved scores for animation
   useEffect(() => {
     const newAchieved = new Set<string>();
-    
+
     scores.forEach((score, idx) => {
       const prevScore = prevScores.current[idx];
       if (score.achieved && prevScore && !prevScore.achieved) {
@@ -82,11 +86,12 @@ export function GameHUD({
 
     if (newAchieved.size > 0) {
       setRecentlyAchieved(newAchieved);
+      playScore(); // Play sound when score is achieved
       setTimeout(() => setRecentlyAchieved(new Set()), 2000);
     }
 
     prevScores.current = scores;
-  }, [scores]);
+  }, [scores, playScore]);
 
   // Balance animation
   useEffect(() => {
@@ -98,6 +103,7 @@ export function GameHUD({
       setGainAmount(diff);
       startTicker(diff);
       setIsGaining(true);
+      playMoneyGain(); // Play sound when money is gained
 
       if (gainTimeout.current) clearTimeout(gainTimeout.current);
       if (highlightTimeout.current) clearTimeout(highlightTimeout.current);
@@ -112,7 +118,7 @@ export function GameHUD({
     }
 
     prevBalance.current = newVal;
-  }, [balance, startTicker]);
+  }, [balance, startTicker, playMoneyGain]);
 
   // Cleanup
   useEffect(() => {

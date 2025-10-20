@@ -8,6 +8,7 @@ import { type DiceData } from "./components/ui/DiceInfo";
 import TableItemInfo, { type TableItemData } from "./components/ui/TableItemInfo";
 import MobileControls from "./components/ui/MobileControls";
 import { isMobileDevice } from "./utils/mobileDetection";
+import { useUISound } from "./systems/audioSystem";
 import { useWallet } from "./hooks/useWallet";
 import { usePersistence } from "./hooks/usePersistence";
 import { GameStateProvider, useGameState } from "./contexts/GameStateContext";
@@ -76,6 +77,9 @@ function AppContent() {
   const [hoveredDice, setHoveredDice] = useState<DiceData | null>(null);
   const [hoveredTableItem, setHoveredTableItem] = useState<TableItemData | null>(null);
   const [highlightedDiceIds, setHighlightedDiceIds] = useState<number[]>([]);
+
+  // Audio hooks
+  const { playItemHover, playItemSelect, playEndOfDay } = useUISound();
 
   // Mobile: Gyroscope controls
   const [hasGyroPermission, setHasGyroPermission] = useState(false);
@@ -180,6 +184,9 @@ function AppContent() {
         return;
       }
 
+      // Play subtle hover sound
+      playItemHover();
+
       const itemData: TableItemData = {
         itemId,
         name: itemId === "cigarette" ? "Cigarette" : "Incense Stick",
@@ -204,17 +211,18 @@ function AppContent() {
 
       setHoveredTableItem(itemData);
     },
-    [gameState.corruption, inventory.consumables]
+    [gameState.corruption, inventory.consumables, playItemHover]
   );
 
   const handleItemSelected = useCallback(
     (item: ItemDefinition) => {
+      playItemSelect(); // Play selection sound
       const newInventory = applyItemToInventory(inventory, item);
       setInventory(newInventory);
       setItemChoices([]);
       onItemSelected();
     },
-    [inventory, onItemSelected]
+    [inventory, onItemSelected, playItemSelect]
   );
 
   // Generate store choices once on mount
@@ -222,6 +230,14 @@ function AppContent() {
     const generatedStoreChoices = generateStoreChoices(inventory, gameState.daysMarked, 5);
     setStoreChoices(generatedStoreChoices);
   }, []); // Empty dependency - only run once
+
+  // Play end of day sound when entering item_selection phase
+  useEffect(() => {
+    if (gameState.phase === "item_selection" && gameState.daysMarked > 2) {
+      // Don't play on the very first item selection (day 2)
+      playEndOfDay();
+    }
+  }, [gameState.phase, gameState.daysMarked, playEndOfDay]);
 
   // Generate item choices when entering item_selection phase
   useEffect(() => {
