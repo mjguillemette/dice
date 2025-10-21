@@ -4,28 +4,36 @@
  */
 
 import { useEffect, useState } from "react";
-import { getReceptacleBounds, RECEPTACLE_DIMENSIONS, RECEPTACLE_POSITION, COLLISION_BOUNDS_OFFSET } from "../../constants/receptacleConfig";
+import {
+  getReceptacleBounds,
+  RECEPTACLE_DIMENSIONS,
+  RECEPTACLE_POSITION,
+  COLLISION_BOUNDS_OFFSET
+} from "../../constants/receptacleConfig";
 import { getShowDiceTrayBounds } from "../../config/devState";
 
 export function DiceTrayBoundsDebug() {
-  const [bounds, setBounds] = useState(getReceptacleBounds());
-  const [visible, setVisible] = useState(getShowDiceTrayBounds());
-  const [wallOffset, setWallOffset] = useState(COLLISION_BOUNDS_OFFSET.wallHeight);
-  const [depthOffset, setDepthOffset] = useState(COLLISION_BOUNDS_OFFSET.depth);
+  const [, forceUpdate] = useState(0);
 
-  // Update bounds and visibility when they change
+  // This effect sets up a timer to force the component to re-render,
+  // ensuring it always shows the latest debug values from your config.
   useEffect(() => {
     const interval = setInterval(() => {
-      setBounds(getReceptacleBounds());
-      setVisible(getShowDiceTrayBounds());
-      setWallOffset(COLLISION_BOUNDS_OFFSET.wallHeight);
-      setDepthOffset(COLLISION_BOUNDS_OFFSET.depth);
-    }, 100); // Poll every 100ms to catch dev panel changes
+      forceUpdate((c) => c + 1); // Trigger a re-render every 100ms
+    }, 100);
 
     return () => clearInterval(interval);
   }, []);
 
+  // Read the latest values directly on each render
+  const visible = getShowDiceTrayBounds();
+
   if (!visible) return null;
+
+  // These values are now freshly read every 100ms
+  const bounds = getReceptacleBounds();
+  const wallOffset = COLLISION_BOUNDS_OFFSET.wallHeight;
+  const depthOffset = COLLISION_BOUNDS_OFFSET.depth;
 
   // Calculate position and size for the wireframe
   const centerX = (bounds.minX + bounds.maxX) / 2;
@@ -33,13 +41,17 @@ export function DiceTrayBoundsDebug() {
   const width = bounds.maxX - bounds.minX;
   const depth = bounds.maxZ - bounds.minZ;
 
-  const baseY = RECEPTACLE_POSITION[1] + RECEPTACLE_DIMENSIONS.baseThickness + depthOffset;
+  const baseY =
+    RECEPTACLE_POSITION[1] + RECEPTACLE_DIMENSIONS.baseThickness + depthOffset;
   const wallHeight = RECEPTACLE_DIMENSIONS.wallHeight + wallOffset;
 
   return (
     <group>
       {/* Filled plane showing the floor bounds area */}
-      <mesh position={[centerX, baseY, centerZ]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[centerX, baseY, centerZ]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
         <planeGeometry args={[width, depth]} />
         <meshBasicMaterial
           color="#ff6b4a"
@@ -50,7 +62,10 @@ export function DiceTrayBoundsDebug() {
       </mesh>
 
       {/* Wireframe outline for clear visibility */}
-      <mesh position={[centerX, baseY, centerZ]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[centerX, baseY, centerZ]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
         <planeGeometry args={[width, depth]} />
         <meshBasicMaterial
           color="#ff6b4a"
@@ -63,13 +78,25 @@ export function DiceTrayBoundsDebug() {
       {/* Wall visualizations */}
       {[
         // Front wall (minZ)
-        { pos: [centerX, baseY + wallHeight / 2, bounds.minZ], size: [width, wallHeight, 0.01] },
+        {
+          pos: [centerX, baseY + wallHeight / 2, bounds.minZ],
+          size: [width, wallHeight, 0.01]
+        },
         // Back wall (maxZ)
-        { pos: [centerX, baseY + wallHeight / 2, bounds.maxZ], size: [width, wallHeight, 0.01] },
+        {
+          pos: [centerX, baseY + wallHeight / 2, bounds.maxZ],
+          size: [width, wallHeight, 0.01]
+        },
         // Left wall (minX)
-        { pos: [bounds.minX, baseY + wallHeight / 2, centerZ], size: [0.01, wallHeight, depth] },
+        {
+          pos: [bounds.minX, baseY + wallHeight / 2, centerZ],
+          size: [0.01, wallHeight, depth]
+        },
         // Right wall (maxX)
-        { pos: [bounds.maxX, baseY + wallHeight / 2, centerZ], size: [0.01, wallHeight, depth] }
+        {
+          pos: [bounds.maxX, baseY + wallHeight / 2, centerZ],
+          size: [0.01, wallHeight, depth]
+        }
       ].map((wall, i) => (
         <mesh key={`wall-${i}`} position={wall.pos as [number, number, number]}>
           <boxGeometry args={wall.size as [number, number, number]} />

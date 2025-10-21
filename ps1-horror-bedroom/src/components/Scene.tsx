@@ -13,7 +13,10 @@ import { type TimeOfDay } from "../systems/gameStateSystem";
 import { getTimeProgressRatio } from "../systems/gameStateSystem";
 import { useInput, useMouseLook } from "../systems/inputSystem";
 import { useTouchInput } from "../systems/touchInputSystem";
-import { useDeviceOrientation, getDeviceOrientationConfig } from "../systems/deviceOrientationControls";
+import {
+  useDeviceOrientation,
+  getDeviceOrientationConfig
+} from "../systems/deviceOrientationControls";
 import { useCorruption } from "../systems/corruptionSystem";
 import { isMobileDevice } from "../utils/mobileDetection";
 import { useGameState } from "../contexts/GameStateContext";
@@ -46,6 +49,7 @@ import {
   isConsumableActive
 } from "../systems/itemSystem";
 import { type GameState } from "../systems/gameStateSystem";
+import { Imp } from "./enemies/Imp";
 // import DiceInfo from "./ui/DiceInfo";
 
 interface SceneProps {
@@ -422,7 +426,11 @@ export function Scene({
 
       // Smoothly interpolate the camera's rotation towards the device's orientation
       // Use inverse of smoothing value (higher smoothing = slower movement)
-      const slerpFactor = THREE.MathUtils.clamp((1 - config.smoothing) * config.sensitivity, 0.05, 0.5);
+      const slerpFactor = THREE.MathUtils.clamp(
+        (1 - config.smoothing) * config.sensitivity,
+        0.05,
+        0.5
+      );
       camera.quaternion.slerp(targetQuat, slerpFactor);
     }
   });
@@ -909,6 +917,7 @@ export function Scene({
         scale={1.4}
         rotation={[0, Math.PI / -2, 0]}
       />
+
       <primitive object={tray.scene} position={RECEPTACLE_POSITION} scale={1} />
       <Suspense fallback={null}>
         {/* Physics world for dice - optimized for performance */}
@@ -949,6 +958,17 @@ export function Scene({
             previousScores={previousScores}
           />
 
+          <Imp
+            position={[0.25, 0.66, 2.38]}
+            scale={0.1}
+            rotation={[0, Math.PI / 1.01, 0]}
+          />
+          <Imp
+            position={[0.1, 0.66, 2.35]}
+            scale={0.12}
+            rotation={[0, Math.PI / 1.2, 0]}
+            animationOffset={1.82}
+          />
           {/* Ground plane - using explicit CuboidCollider */}
           <RigidBody
             type="fixed"

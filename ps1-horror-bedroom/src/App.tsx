@@ -63,7 +63,7 @@ function AppContent() {
   const [mirrorDieCount, setMirrorDieCount] = useState(0);
   const [riggedDieCount, setRiggedDieCount] = useState(0);
   const [diceScore, setDiceScore] = useState(0);
-  const [diceShaderEnabled, _setDiceShaderEnabled] = useState(true);
+  const [diceShaderEnabled, _setDiceShaderEnabled] = useState(false);
   const [towerCardEnabled, setTowerCardEnabled] = useState(false);
   const [sunCardEnabled, setSunCardEnabled] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

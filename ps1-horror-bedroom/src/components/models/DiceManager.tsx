@@ -28,9 +28,26 @@ type DiceStatus =
 
 interface DiceInstance {
   id: number;
-  type: "d6" | "coin" | "nickel" | "d3" | "d4" | "d8" | "d10" | "d12" | "d20" | "thumbtack"
-    | "golden_pyramid" | "caltrop" | "casino_reject" | "weighted_die" | "loaded_coin"
-    | "cursed_die" | "split_die" | "mirror_die" | "rigged_die";
+  type:
+    | "d6"
+    | "coin"
+    | "nickel"
+    | "d3"
+    | "d4"
+    | "d8"
+    | "d10"
+    | "d12"
+    | "d20"
+    | "thumbtack"
+    | "golden_pyramid"
+    | "caltrop"
+    | "casino_reject"
+    | "weighted_die"
+    | "loaded_coin"
+    | "cursed_die"
+    | "split_die"
+    | "mirror_die"
+    | "rigged_die";
   position?: [number, number, number]; // present while thrown/settled
   initialVelocity?: [number, number, number];
   initialAngularVelocity?: [number, number, number];
@@ -81,9 +98,26 @@ interface DiceManagerProps {
 
 export interface SettledDieData {
   id: number;
-  type: "d6" | "coin" | "nickel" | "d3" | "d4" | "d8" | "d10" | "d12" | "d20" | "thumbtack"
-    | "golden_pyramid" | "caltrop" | "casino_reject" | "weighted_die" | "loaded_coin"
-    | "cursed_die" | "split_die" | "mirror_die" | "rigged_die";
+  type:
+    | "d6"
+    | "coin"
+    | "nickel"
+    | "d3"
+    | "d4"
+    | "d8"
+    | "d10"
+    | "d12"
+    | "d20"
+    | "thumbtack"
+    | "golden_pyramid"
+    | "caltrop"
+    | "casino_reject"
+    | "weighted_die"
+    | "loaded_coin"
+    | "cursed_die"
+    | "split_die"
+    | "mirror_die"
+    | "rigged_die";
   value: number;
   inReceptacle: boolean;
   scoreMultiplier?: number; // From transformations
@@ -215,8 +249,10 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       }
     };
 
-    const getTransformationNames = (transformations: DiceTransformation[]): string[] => {
-      return transformations.map(t => {
+    const getTransformationNames = (
+      transformations: DiceTransformation[]
+    ): string[] => {
+      return transformations.map((t) => {
         switch (t.type) {
           case "sun_boost":
             return "Sun";
@@ -243,14 +279,14 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       clickPosition: THREE.Vector3,
       cameraDirection?: THREE.Vector3
     ) => {
-      const spreadRadius = 0.02 + Math.random() * 0.05;
+      const spreadRadius = 0.15 + Math.random() * 0.1;
       const angle = Math.random() * Math.PI * 2;
       const offsetX = Math.cos(angle) * spreadRadius;
       const offsetZ = Math.sin(angle) * spreadRadius;
 
       const position: [number, number, number] = [
         origin.x + offsetX,
-        origin.y,
+        origin.y + Math.random() * 0.1,
         origin.z + offsetZ
       ];
 
@@ -265,12 +301,20 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       const physics = getPhysicsConfig();
 
       const basePower = physics.basePower;
-      const distanceMultiplier = Math.min(distance * physics.distanceMultiplier, physics.maxDistanceBoost);
-      const throwPower = basePower + distanceMultiplier + Math.random() * physics.powerVariation;
+      const distanceMultiplier = Math.min(
+        distance * physics.distanceMultiplier,
+        physics.maxDistanceBoost
+      );
+      const throwPower =
+        basePower + distanceMultiplier + Math.random() * physics.powerVariation;
 
       // Calculate lob arc
-      let velocityY = physics.baseUpwardVelocity - Math.random() * physics.upwardVariation;
-      const arcBoost = Math.min(distance * physics.arcBoostMultiplier, physics.maxArcBoost);
+      let velocityY =
+        physics.baseUpwardVelocity - Math.random() * physics.upwardVariation;
+      const arcBoost = Math.min(
+        distance * physics.arcBoostMultiplier,
+        physics.maxArcBoost
+      );
       velocityY -= arcBoost;
 
       if (cameraDirection) {
@@ -307,7 +351,12 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
     };
 
     const throwDice = useCallback(
-      (clickPosition: THREE.Vector3, throwOrigin?: THREE.Vector3, _chargeAmount?: number, cameraDirection?: THREE.Vector3) => {
+      (
+        clickPosition: THREE.Vector3,
+        throwOrigin?: THREE.Vector3,
+        _chargeAmount?: number,
+        cameraDirection?: THREE.Vector3
+      ) => {
         if (isThrowing) return;
 
         generationRef.current += 1;
@@ -325,39 +374,93 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
             const created: DiceInstance[] = [];
             for (let i = 0; i < diceCount; i++)
               created.push(
-                createDieObject("d6", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "d6",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < coinCount; i++)
               created.push(
-                createDieObject("coin", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "coin",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < nickelCount; i++)
               created.push(
-                createDieObject("nickel", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "nickel",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < d3Count; i++)
               created.push(
-                createDieObject("d3", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "d3",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < d4Count; i++)
               created.push(
-                createDieObject("d4", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "d4",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < d8Count; i++)
               created.push(
-                createDieObject("d8", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "d8",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < d10Count; i++)
               created.push(
-                createDieObject("d10", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "d10",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < d12Count; i++)
               created.push(
-                createDieObject("d12", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "d12",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < d20Count; i++)
               created.push(
-                createDieObject("d20", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "d20",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < thumbTackCount; i++)
               created.push(
@@ -372,39 +475,93 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
             // Special dice
             for (let i = 0; i < goldenPyramidCount; i++)
               created.push(
-                createDieObject("golden_pyramid", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "golden_pyramid",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < caltropCount; i++)
               created.push(
-                createDieObject("caltrop", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "caltrop",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < casinoRejectCount; i++)
               created.push(
-                createDieObject("casino_reject", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "casino_reject",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < weightedDieCount; i++)
               created.push(
-                createDieObject("weighted_die", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "weighted_die",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < loadedCoinCount; i++)
               created.push(
-                createDieObject("loaded_coin", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "loaded_coin",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < cursedDieCount; i++)
               created.push(
-                createDieObject("cursed_die", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "cursed_die",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < splitDieCount; i++)
               created.push(
-                createDieObject("split_die", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "split_die",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < mirrorDieCount; i++)
               created.push(
-                createDieObject("mirror_die", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "mirror_die",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             for (let i = 0; i < riggedDieCount; i++)
               created.push(
-                createDieObject("rigged_die", thisGeneration, origin, clickPosition, cameraDirection)
+                createDieObject(
+                  "rigged_die",
+                  thisGeneration,
+                  origin,
+                  clickPosition,
+                  cameraDirection
+                )
               );
             return created;
           }
@@ -433,14 +590,25 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
               const physics = getPhysicsConfig();
 
               const basePower = physics.basePower;
-              const distanceMultiplier = Math.min(distance * physics.distanceMultiplier, physics.maxDistanceBoost);
-              const throwPower = basePower + distanceMultiplier + Math.random() * physics.powerVariation;
+              const distanceMultiplier = Math.min(
+                distance * physics.distanceMultiplier,
+                physics.maxDistanceBoost
+              );
+              const throwPower =
+                basePower +
+                distanceMultiplier +
+                Math.random() * physics.powerVariation;
 
-              const arcBoost = Math.min(distance * physics.arcBoostMultiplier, physics.maxArcBoost);
+              const arcBoost = Math.min(
+                distance * physics.arcBoostMultiplier,
+                physics.maxArcBoost
+              );
 
               const initialVelocity: [number, number, number] = [
                 (directionX / distance) * throwPower,
-                physics.baseUpwardVelocity - Math.random() * physics.upwardVariation - arcBoost,
+                physics.baseUpwardVelocity -
+                  Math.random() * physics.upwardVariation -
+                  arcBoost,
                 (directionZ / distance) * throwPower
               ];
 
@@ -470,8 +638,28 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
           return next;
         });
       },
-      [isThrowing, diceCount, coinCount, nickelCount, d3Count, d4Count, d8Count, d10Count, d12Count, d20Count, thumbTackCount,
-       goldenPyramidCount, caltropCount, casinoRejectCount, weightedDieCount, loadedCoinCount, cursedDieCount, splitDieCount, mirrorDieCount, riggedDieCount]
+      [
+        isThrowing,
+        diceCount,
+        coinCount,
+        nickelCount,
+        d3Count,
+        d4Count,
+        d8Count,
+        d10Count,
+        d12Count,
+        d20Count,
+        thumbTackCount,
+        goldenPyramidCount,
+        caltropCount,
+        casinoRejectCount,
+        weightedDieCount,
+        loadedCoinCount,
+        cursedDieCount,
+        splitDieCount,
+        mirrorDieCount,
+        riggedDieCount
+      ]
     );
 
     const clearDice = useCallback(() => {
@@ -630,9 +818,11 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
             d12: prev.filter((d) => d.type === "d12").length,
             d20: prev.filter((d) => d.type === "d20").length,
             thumbtack: prev.filter((d) => d.type === "thumbtack").length,
-            golden_pyramid: prev.filter((d) => d.type === "golden_pyramid").length,
+            golden_pyramid: prev.filter((d) => d.type === "golden_pyramid")
+              .length,
             caltrop: prev.filter((d) => d.type === "caltrop").length,
-            casino_reject: prev.filter((d) => d.type === "casino_reject").length,
+            casino_reject: prev.filter((d) => d.type === "casino_reject")
+              .length,
             weighted_die: prev.filter((d) => d.type === "weighted_die").length,
             loaded_coin: prev.filter((d) => d.type === "loaded_coin").length,
             cursed_die: prev.filter((d) => d.type === "cursed_die").length,
@@ -670,15 +860,51 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
               current: totalByType.thumbtack,
               target: newCounts.thumbtacks
             },
-            { type: "golden_pyramid", current: totalByType.golden_pyramid, target: newCounts.golden_pyramid },
-            { type: "caltrop", current: totalByType.caltrop, target: newCounts.caltrop },
-            { type: "casino_reject", current: totalByType.casino_reject, target: newCounts.casino_reject },
-            { type: "weighted_die", current: totalByType.weighted_die, target: newCounts.weighted_die },
-            { type: "loaded_coin", current: totalByType.loaded_coin, target: newCounts.loaded_coin },
-            { type: "cursed_die", current: totalByType.cursed_die, target: newCounts.cursed_die },
-            { type: "split_die", current: totalByType.split_die, target: newCounts.split_die },
-            { type: "mirror_die", current: totalByType.mirror_die, target: newCounts.mirror_die },
-            { type: "rigged_die", current: totalByType.rigged_die, target: newCounts.rigged_die }
+            {
+              type: "golden_pyramid",
+              current: totalByType.golden_pyramid,
+              target: newCounts.golden_pyramid
+            },
+            {
+              type: "caltrop",
+              current: totalByType.caltrop,
+              target: newCounts.caltrop
+            },
+            {
+              type: "casino_reject",
+              current: totalByType.casino_reject,
+              target: newCounts.casino_reject
+            },
+            {
+              type: "weighted_die",
+              current: totalByType.weighted_die,
+              target: newCounts.weighted_die
+            },
+            {
+              type: "loaded_coin",
+              current: totalByType.loaded_coin,
+              target: newCounts.loaded_coin
+            },
+            {
+              type: "cursed_die",
+              current: totalByType.cursed_die,
+              target: newCounts.cursed_die
+            },
+            {
+              type: "split_die",
+              current: totalByType.split_die,
+              target: newCounts.split_die
+            },
+            {
+              type: "mirror_die",
+              current: totalByType.mirror_die,
+              target: newCounts.mirror_die
+            },
+            {
+              type: "rigged_die",
+              current: totalByType.rigged_die,
+              target: newCounts.rigged_die
+            }
           ];
 
           for (const { type, current, target } of types) {
@@ -826,7 +1052,7 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
         .map((d) => {
           // Calculate transformation effects for this die
           const effects = calculateTransformationEffects(d.transformations);
-          const modifierNames = d.transformations.map(t => t.type);
+          const modifierNames = d.transformations.map((t) => t.type);
 
           return {
             id: d.id,
@@ -956,7 +1182,8 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
           const effects = calculateTransformationEffects(dieTransformations);
 
           // Check if this is an edge landing (special value 10 for coins)
-          const isEdgeLanding = value === 10 && (type === "coin" || type === "nickel");
+          const isEdgeLanding =
+            value === 10 && (type === "coin" || type === "nickel");
 
           // For scoring purposes, normalize edge landing to average value (1.5)
           let finalValueForScore = isEdgeLanding ? 1.5 : value;
@@ -977,7 +1204,10 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
 
             const currencyMultiplier = type === "nickel" ? 5 : 1;
             const currencyForThisRoll = Math.round(
-              baseValue * currencyMultiplier * effects.scoreMultiplier * edgeMultiplier
+              baseValue *
+                currencyMultiplier *
+                effects.scoreMultiplier *
+                edgeMultiplier
             );
             if (currencyForThisRoll > 0) {
               totalCurrency += currencyForThisRoll; // Accumulate currency
@@ -1051,7 +1281,9 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
     useEffect(() => {
       if (!currentScores || !previousScores) return;
 
-      const settledDice = diceInstances.filter(d => d.settled && d.inReceptacle);
+      const settledDice = diceInstances.filter(
+        (d) => d.settled && d.inReceptacle
+      );
       if (settledDice.length === 0) return;
 
       // Collect dice IDs that should have trigger effects
@@ -1062,71 +1294,78 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
       // 1. Check for combo triggers (dice contributing to consecutive achievements)
       const achievedCategories = new Set(
         currentScores
-          .filter(s => s.achieved && s.category !== "highest_total")
-          .map(s => s.category)
+          .filter((s) => s.achieved && s.category !== "highest_total")
+          .map((s) => s.category)
       );
 
       const previousAchievedCategories = new Set(
         previousScores
-          .filter(s => s.achieved && s.category !== "highest_total")
-          .map(s => s.category)
+          .filter((s) => s.achieved && s.category !== "highest_total")
+          .map((s) => s.category)
       );
 
-      const comboCategories = Array.from(achievedCategories).filter(cat =>
+      const comboCategories = Array.from(achievedCategories).filter((cat) =>
         previousAchievedCategories.has(cat)
       );
 
       if (comboCategories.length > 0) {
-        // Mark all dice in receptacle as combo triggers
-        settledDice.forEach(d => comboTriggers.add(d.id));
-        console.log("🔥 Combo categories:", comboCategories, "- Highlighting dice:", Array.from(comboTriggers));
+        settledDice.forEach((d) => comboTriggers.add(d.id));
       }
 
       // 2. Check for high score triggers (1.5x better than previous best)
-      currentScores.forEach(currentScore => {
-        if (currentScore.category === "highest_total") return;
-        if (!currentScore.achieved) return;
-
-        const previousScore = previousScores.find(p => p.category === currentScore.category);
+      currentScores.forEach((currentScore) => {
+        if (currentScore.category === "highest_total" || !currentScore.achieved)
+          return;
+        const previousScore = previousScores.find(
+          (p) => p.category === currentScore.category
+        );
         if (!previousScore || previousScore.score === 0) return;
-
-        const improvement = currentScore.score / previousScore.score;
-        if (improvement >= 1.5) {
-          // Mark dice that contributed to this category
-          if (currentScore.diceIds && currentScore.diceIds.length > 0) {
-            currentScore.diceIds.forEach((id: number) => highScoreTriggers.add(id));
-          }
-          console.log(`⚡ High score! ${currentScore.category}: ${previousScore.score} → ${currentScore.score} (${Math.round(improvement * 100)}%)`)
-;
+        if (currentScore.score / previousScore.score >= 1.5) {
+          currentScore.diceIds?.forEach((id: number) =>
+            highScoreTriggers.add(id)
+          );
         }
       });
 
-      // 3. Check for edge landing (coins with value 3 = landed on edge)
-      settledDice.forEach(d => {
-        const isCoin = d.type === "coin" || d.type === "loaded_coin" || d.type === "nickel";
+      // 3. Check for edge landing
+      settledDice.forEach((d) => {
+        const isCoin =
+          d.type === "coin" || d.type === "loaded_coin" || d.type === "nickel";
         if (isCoin && d.value === 3) {
           edgeTriggers.add(d.id);
-          console.log("🎯 Coin landed on edge! ID:", d.id);
         }
       });
 
-      // Apply trigger effects to dice instances
-      setDiceInstances(prev => prev.map(d => {
+      let effectsHaveChanged = false;
+      // Apply trigger effects to dice instances, checking for changes
+      const updatedDiceInstances = diceInstances.map((d) => {
         if (!d.settled) return d;
 
-        let triggerEffect: TriggerEffectType = null;
+        let newTriggerEffect: TriggerEffectType = null;
 
         // Priority: edge > high score > combo
         if (edgeTriggers.has(d.id)) {
-          triggerEffect = "edge";
+          newTriggerEffect = "edge";
         } else if (highScoreTriggers.has(d.id)) {
-          triggerEffect = "special";
+          newTriggerEffect = "special";
         } else if (comboTriggers.has(d.id)) {
-          triggerEffect = "combo";
+          newTriggerEffect = "combo";
         }
 
-        return { ...d, triggerEffect };
-      }));
+        // If the effect is different, flag it and return a new object
+        if (d.triggerEffect !== newTriggerEffect) {
+          effectsHaveChanged = true;
+          return { ...d, triggerEffect: newTriggerEffect };
+        }
+
+        // Otherwise, return the original object to prevent re-renders
+        return d;
+      });
+
+      // Only call setDiceInstances if something actually changed
+      if (effectsHaveChanged) {
+        setDiceInstances(updatedDiceInstances);
+      }
     }, [currentScores, previousScores, diceInstances]);
 
     return (
@@ -1152,9 +1391,10 @@ const DiceManager = forwardRef<DiceManagerHandle, DiceManagerProps>(
           );
 
           // Calculate the score with transformation multiplier if dice has settled with a value
-          const scoreWithMultiplier = dice.value !== undefined && dice.settled
-            ? Math.round(dice.value * transformationEffects.scoreMultiplier)
-            : undefined;
+          const scoreWithMultiplier =
+            dice.value !== undefined && dice.settled
+              ? Math.round(dice.value * transformationEffects.scoreMultiplier)
+              : undefined;
 
           return (
             <Dice
