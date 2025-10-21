@@ -79,6 +79,9 @@ export function CameraSystem({
     [onCameraNameChange]
   );
 
+  const baseQuaternion = new THREE.Quaternion();
+  const finalQuaternion = new THREE.Quaternion();
+
   useEffect(() => {
     if (isStarting) {
       setCameraState("transitioning");
@@ -243,17 +246,24 @@ export function CameraSystem({
         }
 
         if (isMobile && orientationRef?.current) {
+          // 1. Get the base rotation from the yaw/pitch refs
+          baseQuaternion.setFromEuler(
+            new THREE.Euler(pitchRef.current, yawRef.current, 0, "YXZ")
+          );
+
+          // 2. Combine the base rotation with the gyro's offset rotation
+          finalQuaternion.copy(baseQuaternion).multiply(orientationRef.current);
+
+          // 3. Smoothly move the camera to this final combined rotation
           const config = getDeviceOrientationConfig();
           const slerpFactor = THREE.MathUtils.clamp(
             (1 - config.smoothing) * config.sensitivity,
             0.05,
             0.5
           );
-          cameraRef.current.quaternion.slerp(
-            orientationRef.current,
-            slerpFactor
-          );
+          cameraRef.current.quaternion.slerp(finalQuaternion, slerpFactor);
         } else {
+          // Desktop mouse control remains the same
           cameraRef.current.rotation.order = "YXZ";
           cameraRef.current.rotation.y = yawRef.current;
           cameraRef.current.rotation.x = pitchRef.current;

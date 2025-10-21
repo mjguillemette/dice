@@ -140,9 +140,11 @@ export const useDeviceOrientation = (
 
   const recenter = useCallback(() => {
     console.log("📱 Recalibrating orientation...");
-    // Use the latest raw reading to set the new offset
+    // This line resets the physical zero point
     orientationOffsetRef.current.copy(rawDeviceQuaternionRef.current).invert();
-  }, []);
+    // This new line resets the virtual offset, snapping the view back to center
+    orientationRef.current.identity();
+  }, []); // The ref dependencies are implicit
 
   return { orientationRef, hasPermission, isSupported, recenter };
 };

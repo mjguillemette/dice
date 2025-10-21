@@ -5,7 +5,9 @@ import DevPanel from "./components/DevPanel";
 import Crosshair from "./components/ui/Crosshair";
 import GameHUD from "./components/ui/GameHUD";
 import { type DiceData } from "./components/ui/DiceInfo";
-import TableItemInfo, { type TableItemData } from "./components/ui/TableItemInfo";
+import TableItemInfo, {
+  type TableItemData
+} from "./components/ui/TableItemInfo";
 import MobileControls from "./components/ui/MobileControls";
 import { isMobileDevice } from "./utils/mobileDetection";
 import { useUISound } from "./systems/audioSystem";
@@ -75,7 +77,8 @@ function AppContent() {
   const [rollHistory, setRollHistory] = useState<number[]>([]);
   const [_diceSettled, setDiceSettled] = useState(false);
   const [hoveredDice, setHoveredDice] = useState<DiceData | null>(null);
-  const [hoveredTableItem, setHoveredTableItem] = useState<TableItemData | null>(null);
+  const [hoveredTableItem, setHoveredTableItem] =
+    useState<TableItemData | null>(null);
   const [highlightedDiceIds, setHighlightedDiceIds] = useState<number[]>([]);
 
   // Track previous roll's achieved categories for combo detection
@@ -85,7 +88,7 @@ function AppContent() {
   const previousScores = useRef<any[]>([]);
 
   // Audio hooks
-  const { playItemHover, playItemSelect, playEndOfDay} = useUISound();
+  const { playItemHover, playItemSelect, playEndOfDay } = useUISound();
 
   // Mobile: Gyroscope controls
   const [hasGyroPermission, setHasGyroPermission] = useState(false);
@@ -101,8 +104,14 @@ function AppContent() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_spotlightAngle, _setSpotlightAngle] = useState(Math.PI / 6);
 
-  const { balances, addCurrency, spendCurrency, resetWallet } = useWallet({ cents: 55 });
-  const { data: persistentData, recordGameOver, recordGameStart } = usePersistence();
+  const { balances, addCurrency, spendCurrency, resetWallet } = useWallet({
+    cents: 55
+  });
+  const {
+    data: persistentData,
+    recordGameOver,
+    recordGameStart
+  } = usePersistence();
 
   const [inventory, setInventory] =
     useState<PlayerInventory>(INITIAL_INVENTORY);
@@ -144,7 +153,12 @@ function AppContent() {
         onItemSelected();
         return newInventory;
       } else {
-        console.log("Purchase failed: Insufficient funds. Need", price, "cents, have", balances.cents);
+        console.log(
+          "Purchase failed: Insufficient funds. Need",
+          price,
+          "cents, have",
+          balances.cents
+        );
       }
     },
     [spendCurrency, setInventory, inventory, onItemSelected, balances.cents]
@@ -163,7 +177,12 @@ function AppContent() {
       : undefined;
 
     onSuccessfulRoll(cigaretteBonus);
-  }, [diceScore, onSuccessfulRoll, inventory.passiveEffects.cigarette, gameState.corruption]);
+  }, [
+    diceScore,
+    onSuccessfulRoll,
+    inventory.passiveEffects.cigarette,
+    gameState.corruption
+  ]);
 
   const handleFailedRoll = useCallback(() => {
     setRollHistory((prev) => [...prev, diceScore]);
@@ -173,12 +192,24 @@ function AppContent() {
   }, [diceScore, onFailedRoll]);
 
   const handleDiceSettled = useCallback(
-    (diceValues?: number[], diceIds?: number[], scoreMultipliers?: number[]) => {
+    (
+      diceValues?: number[],
+      diceIds?: number[],
+      scoreMultipliers?: number[]
+    ) => {
       setDiceSettled(true);
       // Pass combo multiplier status if incense is active
       const incenseActive = isConsumableActive(inventory, "incense");
-      const previousScores = incenseActive ? gameState.scoring.currentScores : undefined;
-      onDiceSettled(diceValues, diceIds, scoreMultipliers, incenseActive, previousScores);
+      const previousScores = incenseActive
+        ? gameState.scoring.currentScores
+        : undefined;
+      onDiceSettled(
+        diceValues,
+        diceIds,
+        scoreMultipliers,
+        incenseActive,
+        previousScores
+      );
     },
     [onDiceSettled, inventory, gameState.scoring.currentScores]
   );
@@ -196,9 +227,10 @@ function AppContent() {
       const itemData: TableItemData = {
         itemId,
         name: itemId === "cigarette" ? "Cigarette" : "Incense Stick",
-        description: itemId === "cigarette"
-          ? "Passive: +1% corruption per roll. Adds +1 to Highest Total per 1% corruption at end of day."
-          : "Consumable (3 uses): Score categories triggered back-to-back gain +15% per consecutive combo.",
+        description:
+          itemId === "cigarette"
+            ? "Passive: +1% corruption per roll. Adds +1 to Highest Total per 1% corruption at end of day."
+            : "Consumable (3 uses): Score categories triggered back-to-back gain +15% per consecutive combo.",
         position: { x: window.innerWidth / 2, y: window.innerHeight / 2 }
       };
 
@@ -208,11 +240,17 @@ function AppContent() {
         itemData.thisRoundImpact = `+${corruptionPercent} to Highest Total at end of day`;
         itemData.totalImpact = `${corruptionPercent}% total corruption accumulated`;
       } else if (itemId === "incense") {
-        const incenseData = inventory.consumables.find(c => c.itemId === "incense");
+        const incenseData = inventory.consumables.find(
+          (c) => c.itemId === "incense"
+        );
         const remainingUses = incenseData?.remainingUses || 0;
         const isActive = incenseData?.isActive || false;
-        itemData.thisRoundImpact = isActive ? "Active - Combo bonuses enabled" : "Inactive";
-        itemData.totalImpact = `${remainingUses} use${remainingUses !== 1 ? 's' : ''} remaining`;
+        itemData.thisRoundImpact = isActive
+          ? "Active - Combo bonuses enabled"
+          : "Inactive";
+        itemData.totalImpact = `${remainingUses} use${
+          remainingUses !== 1 ? "s" : ""
+        } remaining`;
       }
 
       setHoveredTableItem(itemData);
@@ -233,7 +271,11 @@ function AppContent() {
 
   // Generate store choices once on mount
   useEffect(() => {
-    const generatedStoreChoices = generateStoreChoices(inventory, gameState.daysMarked, 5);
+    const generatedStoreChoices = generateStoreChoices(
+      inventory,
+      gameState.daysMarked,
+      5
+    );
     setStoreChoices(generatedStoreChoices);
   }, []); // Empty dependency - only run once
 
@@ -282,7 +324,9 @@ function AppContent() {
   // Auto-activate incense when first combo occurs
   useEffect(() => {
     // Check if player has incense
-    const incenseData = inventory.consumables.find(c => c.itemId === "incense");
+    const incenseData = inventory.consumables.find(
+      (c) => c.itemId === "incense"
+    );
     if (!incenseData) return;
 
     // Don't activate if already active or no uses remaining
@@ -291,18 +335,21 @@ function AppContent() {
     // Get currently achieved categories (excluding highest_total which is always achieved)
     const currentAchieved = new Set(
       gameState.scoring.currentScores
-        .filter(score => score.achieved && score.category !== "highest_total")
-        .map(score => score.category)
+        .filter((score) => score.achieved && score.category !== "highest_total")
+        .map((score) => score.category)
     );
 
     // Check if any current category was also achieved in the previous roll
-    const hasCombo = Array.from(currentAchieved).some(category =>
+    const hasCombo = Array.from(currentAchieved).some((category) =>
       previousAchievedCategories.current.has(category)
     );
 
     if (hasCombo) {
       console.log("🔥 Combo detected! Auto-activating incense...");
-      console.log("  Previous categories:", Array.from(previousAchievedCategories.current));
+      console.log(
+        "  Previous categories:",
+        Array.from(previousAchievedCategories.current)
+      );
       console.log("  Current categories:", Array.from(currentAchieved));
       const newInventory = activateConsumable(inventory, "incense");
       setInventory(newInventory);
@@ -319,12 +366,26 @@ function AppContent() {
   useEffect(() => {
     if (gameState.isGameOver) {
       const daysSurvived = gameState.daysMarked - 1; // Subtract 1 because we mark the start of each day
-      const totalScore = gameState.scoring.currentScores.reduce((sum, score) => sum + score.score, 0);
+      const totalScore = gameState.scoring.currentScores.reduce(
+        (sum, score) => sum + score.score,
+        0
+      );
       recordGameOver(daysSurvived, totalScore);
-      console.log(`💀 Game Over! Days survived: ${daysSurvived}, Total score: ${totalScore}`);
-      console.log(`📊 Best days survived: ${persistentData.bestDaysSurvived}, Best score: ${persistentData.bestTotalScore}`);
+      console.log(
+        `💀 Game Over! Days survived: ${daysSurvived}, Total score: ${totalScore}`
+      );
+      console.log(
+        `📊 Best days survived: ${persistentData.bestDaysSurvived}, Best score: ${persistentData.bestTotalScore}`
+      );
     }
-  }, [gameState.isGameOver, gameState.daysMarked, gameState.scoring.currentScores, recordGameOver, persistentData.bestDaysSurvived, persistentData.bestTotalScore]);
+  }, [
+    gameState.isGameOver,
+    gameState.daysMarked,
+    gameState.scoring.currentScores,
+    recordGameOver,
+    persistentData.bestDaysSurvived,
+    persistentData.bestTotalScore
+  ]);
 
   // Record game start when phase changes from menu to idle
   const previousPhaseRef = useRef(gameState.phase);
@@ -345,9 +406,16 @@ function AppContent() {
     }
 
     // Detect when game resets: WAS game over, NOW back to idle at day 2
-    if (wasGameOverRef.current && !gameState.isGameOver && gameState.phase === "idle" && gameState.daysMarked === 2) {
+    if (
+      wasGameOverRef.current &&
+      !gameState.isGameOver &&
+      gameState.phase === "idle" &&
+      gameState.daysMarked === 2
+    ) {
       // Full reset detected
-      console.log("🔄 Full game reset detected - clearing inventory and wallet");
+      console.log(
+        "🔄 Full game reset detected - clearing inventory and wallet"
+      );
       setInventory(INITIAL_INVENTORY);
       resetWallet();
       setItemChoices([]);
@@ -357,11 +425,20 @@ function AppContent() {
       wasGameOverRef.current = false; // Clear the flag
 
       // Regenerate store after reset
-      const generatedStoreChoices = generateStoreChoices(INITIAL_INVENTORY, 1, 5);
+      const generatedStoreChoices = generateStoreChoices(
+        INITIAL_INVENTORY,
+        1,
+        5
+      );
       setStoreChoices(generatedStoreChoices);
       console.log("🏪 Regenerated store choices:", generatedStoreChoices);
     }
-  }, [gameState.isGameOver, gameState.phase, gameState.daysMarked, resetWallet]);
+  }, [
+    gameState.isGameOver,
+    gameState.phase,
+    gameState.daysMarked,
+    resetWallet
+  ]);
 
   return (
     <div
@@ -434,71 +511,80 @@ function AppContent() {
           onClick={onStartGame}
           onTouchStart={onStartGame}
         >
-          <h2 style={{
-            fontSize: "2rem",
-            marginBottom: "1rem",
-            color: "var(--bw-dress)"
-          }}>
+          <h2
+            style={{
+              fontSize: "2rem",
+              marginBottom: "1rem",
+              color: "var(--bw-dress)"
+            }}
+          >
             GAME OVER
           </h2>
-          <p style={{
-            fontSize: "1.2rem",
-            opacity: 0.8,
-            marginBottom: "0.5rem",
-            color: "var(--bw-plain)"
-          }}>
+          <p
+            style={{
+              fontSize: "1.2rem",
+              opacity: 0.8,
+              marginBottom: "0.5rem",
+              color: "var(--bw-plain)"
+            }}
+          >
             You survived {gameState.daysMarked - 1} days
           </p>
           {persistentData.bestDaysSurvived > 0 && (
-            <p style={{
-              fontSize: "1rem",
-              opacity: 0.7,
-              marginTop: "0.5rem",
-              color: "var(--bw-lightgravel)"
-            }}>
+            <p
+              style={{
+                fontSize: "1rem",
+                opacity: 0.7,
+                marginTop: "0.5rem",
+                color: "var(--bw-lightgravel)"
+              }}
+            >
               Best: {persistentData.bestDaysSurvived} days
             </p>
           )}
-          <p style={{
-            fontSize: "1rem",
-            opacity: 0.6,
-            marginTop: "2rem",
-            color: "var(--bw-lightgravel)"
-          }}>
+          <p
+            style={{
+              fontSize: "1rem",
+              opacity: 0.6,
+              marginTop: "2rem",
+              color: "var(--bw-lightgravel)"
+            }}
+          >
             Press Enter to try again
           </p>
         </div>
       )}
 
       {/* Cursor Unlock Overlay - shown when cursor is not locked during gameplay (desktop only) */}
-      {!isMobile && !isCursorLocked && gameState.phase !== "menu" && !gameState.isGameOver && (
-        <div
-          className="cursor-unlock-overlay"
-          onClick={() => document.body.requestPointerLock()}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            backgroundColor: "rgba(0, 0, 0, 0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexDirection: "column",
-            color: "white",
-            textAlign: "center",
-            fontFamily: "monospace",
-            zIndex: 100,
-            cursor: "pointer"
-          }}
-        >
-          <h2 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>
-            Paused
-          </h2>
-          <p style={{ opacity: 0.8 }}>Press Enter or click to continue</p>
-        </div>
-      )}
+      {!isMobile &&
+        !isCursorLocked &&
+        gameState.phase !== "menu" &&
+        !gameState.isGameOver && (
+          <div
+            className="cursor-unlock-overlay"
+            onClick={() => document.body.requestPointerLock()}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              backgroundColor: "rgba(0, 0, 0, 0.7)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "column",
+              color: "white",
+              textAlign: "center",
+              fontFamily: "monospace",
+              zIndex: 100,
+              cursor: "pointer"
+            }}
+          >
+            <h2 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>Paused</h2>
+            <p style={{ opacity: 0.8 }}>Press Enter or click to continue</p>
+          </div>
+        )}
 
       {gameState.phase !== "menu" && !cinematicMode && <Crosshair />}
       {gameState.phase !== "menu" && (
@@ -592,7 +678,9 @@ function AppContent() {
           onTableItemHover={handleTableItemHover}
           highlightedDiceIds={highlightedDiceIds}
           onGyroPermissionChange={setHasGyroPermission}
-          onRecenterGyroReady={(fn) => { recenterGyroRef.current = fn; }}
+          onRecenterGyroReady={(fn) => {
+            recenterGyroRef.current = fn;
+          }}
           currentScores={gameState.scoring.currentScores}
           previousScores={previousScores.current}
         />

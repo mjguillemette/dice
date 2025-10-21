@@ -13,7 +13,10 @@ import { type TimeOfDay } from "../systems/gameStateSystem";
 import { getTimeProgressRatio } from "../systems/gameStateSystem";
 import { useInput, useMouseLook } from "../systems/inputSystem";
 import { useTouchInput } from "../systems/touchInputSystem";
-import { useDeviceOrientation } from "../systems/deviceOrientationControls";
+import {
+  useDeviceOrientation,
+  getDeviceOrientationConfig
+} from "../systems/deviceOrientationControls";
 import { useCorruption } from "../systems/corruptionSystem";
 import { isMobileDevice } from "../utils/mobileDetection";
 import { useGameState } from "../contexts/GameStateContext";
@@ -182,7 +185,8 @@ export function Scene({
   highlightedDiceIds,
   onGyroPermissionChange,
   currentScores,
-  previousScores
+  previousScores,
+  onRecenterGyroReady
 }: SceneProps) {
   const { scene, camera, gl } = useThree();
   const { returnToMenu } = useGameState();
@@ -398,8 +402,14 @@ export function Scene({
   useMouseLook(handleMouseMove, gameState.phase !== "menu" && !isStarting);
   const isGyroEnabled = isMobile && gameState.phase !== "menu" && !isStarting;
   // Device orientation controls for mobile
-  const { orientationRef, hasPermission, isSupported } =
+  const { orientationRef, hasPermission, isSupported, recenter } =
     useDeviceOrientation(isGyroEnabled);
+
+  useEffect(() => {
+    if (recenter) {
+      onRecenterGyroReady?.(recenter);
+    }
+  }, [recenter, onRecenterGyroReady]);
 
   // Expose recenter function to parent (always expose it so button can be ready)
   useEffect(() => {
