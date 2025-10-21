@@ -13,10 +13,7 @@ import { type TimeOfDay } from "../systems/gameStateSystem";
 import { getTimeProgressRatio } from "../systems/gameStateSystem";
 import { useInput, useMouseLook } from "../systems/inputSystem";
 import { useTouchInput } from "../systems/touchInputSystem";
-import {
-  useDeviceOrientation,
-  getDeviceOrientationConfig
-} from "../systems/deviceOrientationControls";
+import { useDeviceOrientation } from "../systems/deviceOrientationControls";
 import { useCorruption } from "../systems/corruptionSystem";
 import { isMobileDevice } from "../utils/mobileDetection";
 import { useGameState } from "../contexts/GameStateContext";
