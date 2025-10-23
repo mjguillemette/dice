@@ -615,10 +615,9 @@ function AppContent() {
         style={{
           width: "100%",
           height: "100%",
-          display: "block",
-          imageRendering: "pixelated"
+          display: "block"
         }}
-        dpr={0.5}
+        dpr={1}
       >
         <Scene
           onCameraNameChange={setCameraName}

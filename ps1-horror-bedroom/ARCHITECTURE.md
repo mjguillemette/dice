@@ -1,9 +1,29 @@
-# Architecture Improvements & Scalability Plan
+# Architecture, Combat & Scalability Plan
 
 ## Overview
-This document outlines the architectural improvements for performance, maintainability, and scalability as the game grows to include many dice types and items with unique physics and scoring modifiers.
+This document outlines the architectural improvements for performance, maintainability, and scalability as the game grows to include a dice-based combat system, many dice types, and items with unique physics and scoring modifiers.
 
-## 1. Performance Optimizations
+## 1. Core Gameplay Systems
+
+### Combat System
+The combat system is a turn-based loop managed by `combatSystem.ts`.
+
+-   **Turn Management**: The system determines whether it is the player's turn or the enemy's turn.
+-   **Player Actions**: On the player's turn, the settled dice values are used to determine available actions (e.g., attack, defend). The `scoringSystem` calculates the power of these actions, which scales with the player's score.
+-   **Enemy Actions**: On the enemy's turn, the `enemySystem` dictates enemy behavior. Enemies roll dice via animation and select actions from their unique skill set.
+-   **HP System**: Player HP is managed within the combat system. Max HP is always equal to the "Highest Total" score achieved, creating a direct link between performance and survivability.
+
+### Enemy Spawning System
+-   **Trigger**: Enemies are spawned by the `enemySystem.ts` when the dice tray is used.
+-   **Location**: Enemies appear directly on the dice tray, making them immediate participants in the core gameplay area.
+-   **Enemy AI**: The `enemySystem` also controls enemy behavior, including action selection and targeting.
+
+### Player State Management
+-   **Health (HP)**: The player's current and max HP are tracked. Max HP is dynamically tied to the `Highest Total` score from the `scoringSystem`.
+-   **Actions**: Available player actions are determined by the `itemSystem` and the results of the dice roll.
+-   **Score-to-Power Scaling**: The effectiveness of player actions is directly proportional to their current score, creating a risk/reward dynamic.
+
+## 2. Performance Optimizations
 
 ### Current Bottlenecks
 - **Dice rendering**: Each die creates its own mesh and material
@@ -29,13 +49,15 @@ This document outlines the architectural improvements for performance, maintaina
 - Implement sleep states for settled dice
 - Batch physics updates
 
-## 2. Code Structure & Maintainability
+## 3. Code Structure & Maintainability
 
 ### New Architecture
 
 ```
 src/
 ├── systems/
+│   ├── combatSystem.ts            # Manages turn-based combat, actions, and HP
+│   ├── enemySystem.ts             # Manages enemy spawning and AI
 │   ├── dice/
 │   │   ├── DiceTypeRegistry.ts        # Central dice type definitions
 │   │   ├── DicePhysicsSystem.ts       # Physics behavior per type
@@ -55,6 +77,9 @@ src/
 │       ├── gameStateSystem.ts         # Existing
 │       ├── scoringSystem.ts           # Existing
 │       └── EventBus.ts                # New: Decoupled event system
+├── components/
+│   └── enemies/
+│       └── Imp.tsx                    # Example enemy component
 ├── config/
 │   ├── dice.config.ts                 # All dice type definitions
 │   ├── items.config.ts                # All item definitions
@@ -63,10 +88,11 @@ src/
 └── types/
     ├── dice.types.ts                  # Dice type definitions
     ├── modifier.types.ts              # Modifier type definitions
-    └── item.types.ts                  # Item type definitions
+    ├── item.types.ts                  # Item type definitions
+    └── combat.types.ts                # Types for combat actions, enemies, etc.
 ```
 
-## 3. Scalable Dice & Item System
+## 4. Scalable Dice & Item System
 
 ### Dice Type System
 
@@ -205,7 +231,7 @@ const blessedAmulet: ItemDefinition = {
 };
 ```
 
-## 4. Implementation Priority
+## 5. Implementation Priority
 
 ### Phase 1: Type System & Configuration (Week 1)
 1. Create type definitions (dice.types.ts, modifier.types.ts, item.types.ts)
@@ -232,14 +258,14 @@ const blessedAmulet: ItemDefinition = {
 2. Replace prop drilling with events where appropriate
 3. Add event logging/debugging
 
-## 5. Testing & Validation
+## 6. Testing & Validation
 
 - Unit tests for modifier composition
 - Performance benchmarks for object pooling
 - Integration tests for dice + modifier combinations
 - Stress test with 50+ dice
 
-## 6. Future Enhancements
+## 7. Future Enhancements
 
 - Save/load system for dice configurations
 - Dice crafting system (combine modifiers)

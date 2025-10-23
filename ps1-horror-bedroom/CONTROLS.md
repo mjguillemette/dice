@@ -36,6 +36,11 @@
   - Toggles the developer panel visibility
   - Panel shows real-time status and available controls
 
+## Combat Controls
+
+-   **UI Interaction**: After the dice have settled, player actions (such as attacking or defending) are selected from the on-screen UI.
+-   The available actions are determined by the values of the settled dice.
+
 ## Cinematic Camera Angles
 
 1. **Bedroom Overview** - Wide establishing shot from corner

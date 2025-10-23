@@ -184,10 +184,18 @@ export function ItemChoice({
 
     // Special sizes for cigarette and incense
     if (item.id === "cigarette") {
-      size = [0.055 * BASE_SCALE * 0.6, 0.085 * BASE_SCALE * 0.6, 0.022 * BASE_SCALE * 0.6];
+      size = [
+        0.055 * BASE_SCALE * 0.6,
+        0.085 * BASE_SCALE * 0.6,
+        0.022 * BASE_SCALE * 0.6
+      ];
       geom = new THREE.BoxGeometry(size[0], size[1], size[2]); // Dummy geometry, won't be used
     } else if (item.id === "incense") {
-      size = [0.1 * BASE_SCALE * 2.5, 0.002 * BASE_SCALE * 2.5, 0.002 * BASE_SCALE * 2.5];
+      size = [
+        0.1 * BASE_SCALE * 2.5,
+        0.002 * BASE_SCALE * 2.5,
+        0.002 * BASE_SCALE * 2.5
+      ];
       geom = new THREE.CylinderGeometry(size[1], size[2], size[0], 6); // Dummy geometry, won't be used
     } else if (item.effect.type === "add_dice") {
       switch (maxValue) {
@@ -229,16 +237,19 @@ export function ItemChoice({
   }, [item.effect, item.id, maxValue]);
 
   useEffect(() => {
-    const handleClick = () => {
+    const handleClick = (event: MouseEvent) => {
       if (!isHovered || isPurchased || isShaking) {
         return;
       }
+
+      // Stop this click from triggering other listeners (like the one in Scene.jsx)
+      event.stopPropagation();
 
       const success = spendCurrency();
 
       if (success) {
         setIsPurchased(true);
-        onPurchase(); // Call onPurchase ONLY on success
+        onPurchase();
         setTimeout(() => setIsPurchased(false), 500);
       } else {
         setIsShaking(true);
@@ -246,13 +257,13 @@ export function ItemChoice({
       }
     };
 
-    // Listen for both mouse and touch events
-    window.addEventListener("mousedown", handleClick);
-    window.addEventListener("touchstart", handleClick);
+    window.addEventListener("mousedown", handleClick, true);
+    // You can remove the touchstart listener if your main Scene handler handles touch
+    // window.addEventListener("touchstart", handleClick, true);
 
     return () => {
-      window.removeEventListener("mousedown", handleClick);
-      window.removeEventListener("touchstart", handleClick);
+      window.removeEventListener("mousedown", handleClick, true);
+      // window.removeEventListener("touchstart", handleClick, true);
     };
   }, [isHovered, isPurchased, isShaking, spendCurrency, onPurchase]);
 

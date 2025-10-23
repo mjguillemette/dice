@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes all the 3D models in the PS1 Horror Bedroom scene, including their corruption behaviors and technical details.
+This document describes all the 3D models in the PS1 Horror Bedroom scene, including their corruption behaviors, technical details, and the new enemy models.
 
 ---
 
@@ -49,6 +49,22 @@ This document describes all the 3D models in the PS1 Horror Bedroom scene, inclu
 - Stand base (2.5x0.8x0.8 box)
 - TV body (2x1.2x0.15 box)
 - Screen (1.8x1 plane) - Blue → Red
+
+---
+
+## Enemies
+
+### Imp (Imp.tsx)
+**Description:** A small, demonic creature that serves as the primary enemy in the game.
+**Spawning:** Spawns on the dice tray when combat is initiated.
+**Behavior:**
+-   The Imp has its own set of dice and actions.
+-   It does not use the physics system for rolling; instead, its rolls are animated for cinematic effect.
+-   Its actions are determined by its own dice rolls and AI logic from the `enemySystem`.
+
+**Model:**
+-   A low-poly model loaded from `imp.gltf`.
+-   Features basic animations for idle, attack, and being hit.
 
 ---
 

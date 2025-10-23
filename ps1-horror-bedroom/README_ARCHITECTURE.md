@@ -46,7 +46,13 @@ Built a powerful modifier engine that handles complex effect composition:
 - Easy to add new modifier types
 - Supports complex interactions
 
-### 4. Comprehensive Documentation ✅
+### 4. Combat System
+- **Turn-Based Combat**: A new `combatSystem.ts` manages the turn-based loop between the player and enemies.
+- **Enemy Spawning**: The `enemySystem.ts` spawns enemies on the dice tray.
+- **Player Actions**: Player actions are determined by dice rolls and their effectiveness is scaled by the player's score.
+- **Player HP**: Player health is tracked, with max HP being equal to the highest total score.
+
+### 5. Comprehensive Documentation ✅
 
 **Files Created:**
 - `ARCHITECTURE.md` - System design and architecture overview
@@ -176,14 +182,19 @@ ps1-horror-bedroom/
 ├── src/
 │   ├── types/
 │   │   ├── dice.types.ts       # Dice type definitions
-│   │   └── modifier.types.ts   # Modifier type definitions
+│   │   ├── modifier.types.ts   # Modifier type definitions
+│   │   └── combat.types.ts     # Combat type definitions
 │   ├── config/
 │   │   ├── dice.config.ts      # All dice definitions
 │   │   └── modifiers.config.ts # All modifier definitions
 │   ├── systems/
+│   │   ├── combatSystem.ts     # Manages combat loop
+│   │   ├── enemySystem.ts      # Manages enemy spawning and AI
 │   │   └── modifiers/
 │   │       └── ModifierEngine.ts # Modifier composition engine
 │   └── components/
+│       ├── enemies/
+│       │   └── Imp.tsx         # Example enemy component
 │       ├── ui/
 │       │   └── GameHUD.tsx     # Unified, optimized UI
 │       └── models/

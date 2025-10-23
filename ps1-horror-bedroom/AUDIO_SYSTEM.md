@@ -6,6 +6,7 @@ The game now includes a comprehensive, scalable audio system with support for:
 
 - **Collision sounds** with velocity-based volume scaling
 - **UI sounds** for score achievements, money gains, clicks, etc.
+- **Enemy sounds** for combat actions (spawn, attack, hurt).
 - **3D positional audio** for spatial sound effects
 - **Sound categories** (SFX, UI, Ambient, Music) with independent volume controls
 - **Placeholder audio generation** for testing without actual audio files
@@ -31,6 +32,17 @@ The game now includes a comprehensive, scalable audio system with support for:
    - Synthesizes audio programmatically for testing
    - No audio files required
    - Can be toggled on/off
+
+## Enemy Sounds
+
+With the introduction of enemies, the audio system now supports sounds for combat actions:
+
+-   **Spawn Sounds**: Played when an enemy appears on the dice tray.
+-   **Attack Sounds**: Unique sounds for each enemy attack.
+-   **Hurt Sounds**: Played when an enemy takes damage.
+-   **Death Sounds**: Played when an enemy is defeated.
+
+These sounds are triggered by the `combatSystem` and `enemySystem` and are crucial for providing feedback to the player during combat.
 
 ## Usage Examples
 
@@ -118,6 +130,14 @@ export const SOUNDS = {
     success: { src: '/sounds/ui/success.mp3', category: 'ui', volume: 0.7 },
     // ... more UI sounds
   },
+  enemies: {
+    imp: {
+      spawn: { src: '/sounds/enemies/imp/spawn.mp3', category: 'sfx' },
+      attack: { src: '/sounds/enemies/imp/attack.mp3', category: 'sfx' },
+      hurt: { src: '/sounds/enemies/imp/hurt.mp3', category: 'sfx' },
+      death: { src: '/sounds/enemies/imp/death.mp3', category: 'sfx' },
+    }
+  }
   // ... more categories
 };
 ```
@@ -152,6 +172,7 @@ The following sounds are defined in the registry and ready to use:
 - **UI Sounds**: click, hover, success, error
 - **Ambient Sounds**: room ambience, rain, wind
 - **Music**: menu music, gameplay music
+- **Enemy Sounds**: All Imp sounds are ready for implementation.
 
 ### 📋 To Add Real Audio Files
 
@@ -160,6 +181,7 @@ The following sounds are defined in the registry and ready to use:
    - `public/sounds/ui/` (click.mp3, hover.mp3, success.mp3, error.mp3, score.mp3, money.mp3)
    - `public/sounds/ambient/` (room.mp3, rain.mp3, wind.mp3)
    - `public/sounds/music/` (menu.mp3, gameplay.mp3)
+   - `public/sounds/enemies/imp/` (spawn.mp3, attack.mp3, hurt.mp3, death.mp3)
 
 2. Toggle placeholder mode off:
    ```typescript

@@ -1,8 +1,8 @@
-import { useRef, useEffect } from 'react';
-import * as THREE from 'three';
-import { PhysicalObject } from '../physics/PhysicalObject';
-import { useCorruptionMaterial } from '../../hooks/useCorruptionMaterial';
-import { RECEPTACLE_DIMENSIONS } from '../../constants/receptacleConfig';
+import { useRef, useEffect } from "react";
+import * as THREE from "three";
+import { PhysicalObject } from "../physics/PhysicalObject";
+import { useCorruptionMaterial } from "../../hooks/useCorruptionMaterial";
+import { RECEPTACLE_DIMENSIONS } from "../../constants/receptacleConfig";
 
 interface DiceReceptacleProps {
   position: [number, number, number];
@@ -34,18 +34,20 @@ export function DiceReceptacle({
   // Outer wood frame material
   const frameMaterial = useCorruptionMaterial({
     normalColor: 0x654321, // Dark brown wood
-    hellColor: 0x1a0000,
+    hellColor: 0x1a0000
   });
 
   // Inner felt/fabric surface material
   const feltMaterial = useCorruptionMaterial({
     normalColor: 0x2d5016, // Dark green felt
-    hellColor: 0x0d0000,
+    hellColor: 0x0d0000
   });
 
   // Update hell factor
-  if (frameMaterial.uniforms) frameMaterial.uniforms.hellFactor.value = hellFactor;
-  if (feltMaterial.uniforms) feltMaterial.uniforms.hellFactor.value = hellFactor;
+  if (frameMaterial.uniforms)
+    frameMaterial.uniforms.hellFactor.value = hellFactor;
+  if (feltMaterial.uniforms)
+    feltMaterial.uniforms.hellFactor.value = hellFactor;
 
   // Set spotlight target
   useEffect(() => {
@@ -55,10 +57,16 @@ export function DiceReceptacle({
   }, []);
 
   // Tray dimensions from centralized config
-  const { width: trayWidth, depth: trayDepth, baseThickness: trayBaseThickness, wallHeight, wallThickness } = RECEPTACLE_DIMENSIONS;
+  const {
+    width: trayWidth,
+    depth: trayDepth,
+    baseThickness: trayBaseThickness,
+    wallHeight,
+    wallThickness
+  } = RECEPTACLE_DIMENSIONS;
 
   // Debug: Log receptacle setup once
-  console.log('🎲 DiceReceptacle setup:', {
+  console.log("🎲 DiceReceptacle setup:", {
     position,
     dimensions: { trayWidth, trayDepth, wallHeight, wallThickness },
     innerDimensions: {
@@ -71,39 +79,55 @@ export function DiceReceptacle({
     <PhysicalObject
       position={position}
       collision={{
-        type: 'compound',
+        type: "compound",
         shapes: [
           // Base - thin floor at bottom
           {
-            type: 'box',
+            type: "box",
             size: [trayWidth, trayBaseThickness, trayDepth],
-            offset: [0, trayBaseThickness / 2, 0],
+            offset: [0, trayBaseThickness / 2, 0]
           },
           // Front wall
           {
-            type: 'box',
+            type: "box",
             size: [trayWidth, wallHeight, wallThickness],
-            offset: [0, trayBaseThickness + wallHeight / 2, trayDepth / 2 - wallThickness / 2],
+            offset: [
+              0,
+              trayBaseThickness + wallHeight / 2,
+              trayDepth / 2 - wallThickness / 2
+            ]
           },
           // Back wall
           {
-            type: 'box',
+            type: "box",
             size: [trayWidth, wallHeight, wallThickness],
-            offset: [0, trayBaseThickness + wallHeight / 2, -(trayDepth / 2 - wallThickness / 2)],
+            offset: [
+              0,
+              trayBaseThickness + wallHeight / 2,
+              -(trayDepth / 2 - wallThickness / 2)
+            ]
           },
           // Left wall
           {
-            type: 'box',
+            type: "box",
             size: [wallThickness, wallHeight, trayDepth - wallThickness * 2],
-            offset: [-(trayWidth / 2 - wallThickness / 2), trayBaseThickness + wallHeight / 2, 0],
+            offset: [
+              -(trayWidth / 2 - wallThickness / 2),
+              trayBaseThickness + wallHeight / 2,
+              0
+            ]
           },
           // Right wall
           {
-            type: 'box',
+            type: "box",
             size: [wallThickness, wallHeight, trayDepth - wallThickness * 2],
-            offset: [trayWidth / 2 - wallThickness / 2, trayBaseThickness + wallHeight / 2, 0],
-          },
-        ],
+            offset: [
+              trayWidth / 2 - wallThickness / 2,
+              trayBaseThickness + wallHeight / 2,
+              0
+            ]
+          }
+        ]
       }}
       friction={0.8}
       restitution={0.15}
@@ -115,13 +139,26 @@ export function DiceReceptacle({
       </mesh>
 
       {/* Felt surface on top of base */}
-      <mesh position={[0, trayBaseThickness + 0.005, 0]} material={feltMaterial}>
-        <boxGeometry args={[trayWidth - wallThickness * 2, 0.01, trayDepth - wallThickness * 2]} />
+      <mesh
+        position={[0, trayBaseThickness + 0.005, 0]}
+        material={feltMaterial}
+      >
+        <boxGeometry
+          args={[
+            trayWidth - wallThickness * 2,
+            0.01,
+            trayDepth - wallThickness * 2
+          ]}
+        />
       </mesh>
 
       {/* Front wall (towards player, closer Z) */}
       <mesh
-        position={[0, trayBaseThickness + wallHeight / 2, trayDepth / 2 - wallThickness / 2]}
+        position={[
+          0,
+          trayBaseThickness + wallHeight / 2,
+          trayDepth / 2 - wallThickness / 2
+        ]}
         material={frameMaterial}
       >
         <boxGeometry args={[trayWidth, wallHeight, wallThickness]} />
@@ -129,7 +166,11 @@ export function DiceReceptacle({
 
       {/* Back wall */}
       <mesh
-        position={[0, trayBaseThickness + wallHeight / 2, -(trayDepth / 2 - wallThickness / 2)]}
+        position={[
+          0,
+          trayBaseThickness + wallHeight / 2,
+          -(trayDepth / 2 - wallThickness / 2)
+        ]}
         material={frameMaterial}
       >
         <boxGeometry args={[trayWidth, wallHeight, wallThickness]} />
@@ -137,18 +178,30 @@ export function DiceReceptacle({
 
       {/* Left wall */}
       <mesh
-        position={[-(trayWidth / 2 - wallThickness / 2), trayBaseThickness + wallHeight / 2, 0]}
+        position={[
+          -(trayWidth / 2 - wallThickness / 2),
+          trayBaseThickness + wallHeight / 2,
+          0
+        ]}
         material={frameMaterial}
       >
-        <boxGeometry args={[wallThickness, wallHeight, trayDepth - wallThickness * 2]} />
+        <boxGeometry
+          args={[wallThickness, wallHeight, trayDepth - wallThickness * 2]}
+        />
       </mesh>
 
       {/* Right wall */}
       <mesh
-        position={[trayWidth / 2 - wallThickness / 2, trayBaseThickness + wallHeight / 2, 0]}
+        position={[
+          trayWidth / 2 - wallThickness / 2,
+          trayBaseThickness + wallHeight / 2,
+          0
+        ]}
         material={frameMaterial}
       >
-        <boxGeometry args={[wallThickness, wallHeight, trayDepth - wallThickness * 2]} />
+        <boxGeometry
+          args={[wallThickness, wallHeight, trayDepth - wallThickness * 2]}
+        />
       </mesh>
 
       {/* Focused spotlight above the receptacle to illuminate dice faces */}
@@ -156,7 +209,9 @@ export function DiceReceptacle({
       <spotLight
         ref={spotLightRef}
         position={[0, spotlightHeight, 0]} // Height controlled by DevPanel
-        intensity={hellFactor > 0.5 ? spotlightIntensity * 0.75 : spotlightIntensity} // Dimmer in hell mode
+        intensity={
+          hellFactor > 0.5 ? spotlightIntensity * 0.75 : spotlightIntensity
+        } // Dimmer in hell mode
         color={hellFactor > 0.5 ? 0xff6633 : 0xffeedd} // Warm neutral (not pure white) for better contrast
         angle={spotlightAngle} // Cone angle controlled by DevPanel
         penumbra={0.2} // Slight edge softness for more natural look

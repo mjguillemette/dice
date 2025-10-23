@@ -1,6 +1,6 @@
 # Migration Guide: Old Architecture → New Architecture
 
-This guide helps you migrate from the current implementation to the new scalable architecture.
+This guide helps you migrate from the current implementation to the new scalable architecture, which now includes a combat system.
 
 ## Overview
 
@@ -9,6 +9,7 @@ The new architecture introduces:
 - **Composable modifier system** in `src/config/modifiers.config.ts`
 - **ModifierEngine** for applying effects
 - **Configuration-driven approach** for easy extension
+- **Combat System** with enemies and player actions.
 
 ## Migration Strategy
 
@@ -25,7 +26,12 @@ The new architecture introduces:
 2. Dice → Use type definitions from config
 3. Card components → Use new modifier system
 
-### Phase 3: Remove Old Code
+### Phase 3: Integrate Combat System
+1. Add `combatSystem.ts` and `enemySystem.ts`.
+2. Create enemy components in `src/components/enemies/`.
+3. Integrate combat logic into the main game loop.
+
+### Phase 4: Remove Old Code
 
 1. Delete old diceTransformationSystem.ts (replaced by ModifierEngine)
 2. Clean up unused transformation logic
@@ -363,9 +369,10 @@ applyModifier(diceId, "lucky");         // Reroll 1s
 
 ## Checklist
 
-- [ ] Create new type files (`dice.types.ts`, `modifier.types.ts`)
+- [ ] Create new type files (`dice.types.ts`, `modifier.types.ts`, `combat.types.ts`)
 - [ ] Create config files (`dice.config.ts`, `modifiers.config.ts`)
 - [ ] Create ModifierEngine
+- [ ] Create `combatSystem.ts` and `enemySystem.ts`
 - [ ] Update DiceManager to use ModifierEngine
 - [ ] Update Card collision handlers
 - [ ] Add React.memo to GameHUD

@@ -1,4 +1,11 @@
-import { useState, useCallback, useRef, useEffect, Suspense } from "react";
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  Suspense,
+  Fragment
+} from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Physics, RigidBody, CuboidCollider } from "@react-three/rapier";
 import * as THREE from "three";
@@ -47,7 +54,24 @@ import {
 } from "../systems/itemSystem";
 import { type GameState } from "../systems/gameStateSystem";
 import { Imp } from "./enemies/Imp";
+import { combatSystem } from "../systems/combatSystem";
+import type { Enemy } from "../types/combat.types";
+import { Portal } from "./models/Portal";
+import { useCombat } from "../hooks/useCombat";
+import FormOnCube from "./ui/3d/FormOnCube";
+import { CharacterHUD3D } from "./ui/3d/CharacterHUD3D";
+
 // import DiceInfo from "./ui/DiceInfo";
+const isInteractive = (object: THREE.Object3D | null): boolean => {
+  let current = object;
+  while (current) {
+    if (current.name === "ui_3d") {
+      return true;
+    }
+    current = current.parent;
+  }
+  return false;
+};
 
 interface SceneProps {
   onCameraNameChange: (name: string) => void;
@@ -183,21 +207,19 @@ export function Scene({
   onGyroPermissionChange,
   currentScores,
   previousScores,
-  onRecenterGyroReady
+  onRecenterGyroReady,
+  playerBalance
 }: SceneProps) {
   const { scene, camera, gl } = useThree();
   const { returnToMenu } = useGameState();
   const [isStarting, setIsStarting] = useState(false);
   const hasStartedGameRef = useRef(false);
 
-  // Detect if on mobile device
   const [isMobile] = useState(() => isMobileDevice());
 
-  // Initialize audio system
   useAudioSystem(camera);
 
   useEffect(() => {
-    // Only trigger the starting animation when transitioning from menu to idle (first time)
     if (gameState.phase === "idle" && !hasStartedGameRef.current) {
       console.log(
         "🎮 First time entering idle - starting transition animation"
@@ -222,17 +244,87 @@ export function Scene({
   const [hasItemsOnTowerCard, setHasItemsOnTowerCard] = useState(false);
   const [hasItemsOnSunCard, setHasItemsOnSunCard] = useState(false);
 
-  // Store yaw (left/right) and pitch (up/down) for camera look
   const yawRef = useRef(0);
   const pitchRef = useRef(0);
 
-  // Track locally to pass to DiceManager for highlighting
   const [hoveredDiceId, setHoveredDiceId] = useState<number | null>(null);
-
-  // Track cursor lock state
   const [isCursorLocked, setIsCursorLocked] = useState(false);
 
-  // Debug: Log when cigarette/incense should be visible
+  const { enemies, startCombat, endCombat, isCombatActive } = useCombat();
+  const combatTimerRef = useRef<number | null>(null);
+  const activeCombatTimeOfDay = useRef<TimeOfDay | null>(null); // Track when combat *started*
+
+  // Start/End combat based on time of day and game phase
+  useEffect(() => {
+    if (combatTimerRef.current) {
+      clearTimeout(combatTimerRef.current);
+      combatTimerRef.current = null;
+    }
+
+    // --- Conditions ---
+    const isGameplayPhase = [
+      "idle",
+      "throwing",
+      "settled",
+      "evaluating"
+    ].includes(gameState.phase);
+    // REMOVED: const isCombatTime = timeOfDay !== "night"; // Combat occurs during morning and midday
+
+    // --- Logic to START Combat ---
+    // Start combat if in a gameplay phase, not already active, and haven't started for this time yet.
+    if (
+      isGameplayPhase &&
+      !isCombatActive &&
+      activeCombatTimeOfDay.current !== timeOfDay
+    ) {
+      console.log(
+        `[Scene Combat Logic] Conditions met to START combat for ${timeOfDay}. Setting timer.`
+      );
+      combatTimerRef.current = window.setTimeout(() => {
+        console.log(
+          `[Scene Combat Logic] Timer fired! Starting combat for ${timeOfDay}!`
+        );
+        startCombat();
+        activeCombatTimeOfDay.current = timeOfDay;
+        combatTimerRef.current = null;
+      }, 500);
+    }
+
+    // --- Logic to END Combat ---
+    // End combat ONLY if we go to menu OR if the time of day changes *while* combat is active.
+    const shouldEndCombat =
+      gameState.phase === "menu" ||
+      (isCombatActive && activeCombatTimeOfDay.current !== timeOfDay);
+
+    if (shouldEndCombat) {
+      if (isCombatActive) {
+        console.log(
+          `[Scene Combat Logic] Conditions met to END combat (Phase: ${gameState.phase}, Time: ${timeOfDay}, Active Combat Time: ${activeCombatTimeOfDay.current}).`
+        );
+        endCombat();
+      }
+      // Reset tracking ref when ending due to time change or menu
+      if (
+        gameState.phase === "menu" ||
+        activeCombatTimeOfDay.current !== timeOfDay
+      ) {
+        activeCombatTimeOfDay.current = null;
+      }
+    }
+
+    // Cleanup
+    return () => {
+      if (combatTimerRef.current) {
+        console.log(
+          "[Scene Combat Logic] Cleanup: Clearing combat start timer."
+        );
+        clearTimeout(combatTimerRef.current);
+        combatTimerRef.current = null;
+      }
+    };
+    // Keep dependencies the same, the logic inside handles the conditions now.
+  }, [timeOfDay, gameState.phase, startCombat, endCombat, isCombatActive]);
+
   useEffect(() => {
     console.log("🚬 Cigarette visible:", inventory.passiveEffects.cigarette);
     console.log(
@@ -242,7 +334,6 @@ export function Scene({
     console.log("📍 Receptacle position:", RECEPTACLE_POSITION);
   }, [inventory.passiveEffects.cigarette, inventory.consumables]);
 
-  // Listen for pointer lock changes
   useEffect(() => {
     const handlePointerLockChange = () => {
       const locked = !!document.pointerLockElement;
@@ -274,10 +365,8 @@ export function Scene({
     };
   }, [onCursorLockChange]);
 
-  // Handle Enter key to lock cursor when unlocked (without resetting game)
   useEffect(() => {
     const handleEnterKey = (e: KeyboardEvent) => {
-      // Only handle Enter when cursor is unlocked and not in menu/game over
       if (
         e.code === "Enter" &&
         !isCursorLocked &&
@@ -293,9 +382,7 @@ export function Scene({
     return () => document.removeEventListener("keydown", handleEnterKey);
   }, [isCursorLocked, gameState.phase, gameState.isGameOver]);
 
-  // Reset dice when game resets after game over
   useEffect(() => {
-    // Detect fresh game start: phase is idle and day is 2 (start of new game)
     if (
       gameState.phase === "idle" &&
       gameState.daysMarked === 2 &&
@@ -307,14 +394,25 @@ export function Scene({
   }, [gameState.phase, gameState.daysMarked]);
 
   console.log("Store choices:", storeChoices);
+  useEffect(() => {
+    if (enemies && enemies.length > 0) {
+      console.log(
+        "Enemies state updated in Scene:",
+        JSON.stringify(
+          enemies.map((e) => ({
+            id: e.id,
+            type: e.type,
+            hp: e.hp,
+            portal: e.portalProgress,
+            entrance: e.entranceAnimationProgress
+          }))
+        )
+      );
+    } else {
+      // console.log("Enemies state updated in Scene: []");
+    }
+  }, [enemies]);
 
-  // // Throw charge mechanics
-  // const [throwCharging, setThrowCharging] = useState(false);
-  // const [throwCharge, setThrowCharge] = useState(0);
-  // const chargeStartTime = useRef<number>(0);
-  // const MAX_CHARGE_TIME = 1500; // 1.5 seconds max charge
-
-  // Use the corruption hook with game state corruption as the controlling value
   const {
     hellFactor,
     autoCorruption,
@@ -323,17 +421,14 @@ export function Scene({
     toggleAutoCorruption
   } = useCorruption(gameState.corruption);
 
-  // Update parent component with hellFactor changes
   useEffect(() => {
     onHellFactorChange(hellFactor);
-  }, [hellFactor]); // Removed onHellFactorChange from deps to prevent infinite loop
+  }, [hellFactor]);
 
-  // Update parent component with autoCorruption changes
   useEffect(() => {
     onAutoCorruptionChange(autoCorruption);
-  }, [autoCorruption]); // Removed onAutoCorruptionChange from deps to prevent infinite loop
+  }, [autoCorruption]);
 
-  // Callbacks for card items change that update both parent and local state
   const handleTowerCardItemsChange = useCallback(
     (diceIds: number[]) => {
       setHasItemsOnTowerCard(diceIds.length > 0);
@@ -360,25 +455,21 @@ export function Scene({
 
   const handleMouseMove = useCallback(
     (movementX: number, movementY: number) => {
-      // Only allow mouse look when not in menu AND not during the initial transition
       if (cameraRef.current && gameState.phase !== "menu" && !isStarting) {
-        // Update yaw (left/right) and pitch (up/down) with good sensitivity
         const mouseSensitivity = 0.003;
         yawRef.current -= movementX * mouseSensitivity;
         pitchRef.current -= movementY * mouseSensitivity;
 
-        // Clamp pitch to prevent looking too far up or down
         const maxPitch = Math.PI / 2.5;
         pitchRef.current = Math.max(
           -maxPitch,
           Math.min(maxPitch, pitchRef.current)
         );
 
-        // Apply rotation using YXZ order (prevents weird tilting/rolling)
         cameraRef.current.rotation.order = "YXZ";
         cameraRef.current.rotation.y = yawRef.current;
         cameraRef.current.rotation.x = pitchRef.current;
-        cameraRef.current.rotation.z = 0; // No roll
+        cameraRef.current.rotation.z = 0;
       }
     },
     [gameState.phase, isStarting]
@@ -395,10 +486,8 @@ export function Scene({
     gameState
   );
 
-  // Disable mouse look during menu OR during the initial starting transition
   useMouseLook(handleMouseMove, gameState.phase !== "menu" && !isStarting);
   const isGyroEnabled = isMobile && gameState.phase !== "menu" && !isStarting;
-  // Device orientation controls for mobile
   const { orientationRef, hasPermission, isSupported, recenter } =
     useDeviceOrientation(isGyroEnabled);
 
@@ -408,9 +497,7 @@ export function Scene({
     }
   }, [recenter, onRecenterGyroReady]);
 
-  // Expose recenter function to parent (always expose it so button can be ready)
   useEffect(() => {
-    // This will run whenever hasPermission changes after the initial check
     if (isSupported) {
       console.log(
         "📱 Gyroscope permission:",
@@ -420,7 +507,6 @@ export function Scene({
     }
   }, [hasPermission, isSupported, onGyroPermissionChange]);
 
-  // Track smooth fog color transitions
   const targetFogColorRef = useRef<THREE.Color>(
     new THREE.Color(TIME_OF_DAY_CONFIG[timeOfDay].fogColor)
   );
@@ -428,12 +514,9 @@ export function Scene({
     new THREE.Color(TIME_OF_DAY_CONFIG[timeOfDay].fogColor)
   );
 
-  // Update target fog color when time of day or corruption changes
   useEffect(() => {
-    // Calculate time progress (0-1) toward next time period
     const timeProgress = getTimeProgressRatio(successfulRolls);
 
-    // Get current and next time period colors
     const getNextTimePeriod = (current: TimeOfDay): TimeOfDay => {
       if (current === "morning") return "midday";
       if (current === "midday") return "night";
@@ -453,31 +536,25 @@ export function Scene({
       nextFogColor: `#${nextTimeConfig.fogColor.toString(16)}`
     });
 
-    // Blend between current and next time-of-day
     const normalFogColor = new THREE.Color(currentTimeConfig.fogColor).lerp(
       new THREE.Color(nextTimeConfig.fogColor),
       timeProgress
     );
 
-    // Then blend with corruption/hell color
     const targetColor = normalFogColor
       .clone()
       .lerp(new THREE.Color(FOG_CONFIG.hellColor), hellFactor);
 
     console.log("🎨 Target fog color:", `#${targetColor.getHexString()}`);
 
-    // Update target - the animation will happen in useFrame
     targetFogColorRef.current = targetColor;
   }, [hellFactor, timeOfDay, successfulRolls]);
 
-  // Smoothly animate fog color toward target
   useFrame((_state, delta) => {
-    // Lerp current color toward target color using configured speed
     const lerpAmount = Math.min(delta * FOG_CONFIG.transitionSpeed, 1.0);
 
     currentFogColorRef.current.lerp(targetFogColorRef.current, lerpAmount);
 
-    // Apply to scene
     if (scene.fog) {
       (scene.fog as THREE.Fog).color.copy(currentFogColorRef.current);
     } else {
@@ -495,7 +572,6 @@ export function Scene({
     cameraRef.current = camera;
   }, [camera]);
 
-  // Update dice pool when throwable counts change (preserves transformations on existing dice)
   useEffect(() => {
     if (diceManagerRef.current) {
       console.log("Dice counts changed - updating dice pool");
@@ -543,205 +619,144 @@ export function Scene({
     riggedDieCount
   ]);
 
-  // Unified dice throwing/interaction handler (works for both mouse and touch)
-  const handleThrowOrInteract = useCallback(
-    (clientX?: number, clientY?: number) => {
-      console.log(
-        "Throw/Interact triggered! Pointer locked:",
-        !!document.pointerLockElement,
-        "Game phase:",
-        gameState.phase,
-        "Mobile:",
-        isMobile
+  // This is the actual game logic for throwing dice or evaluating a round
+  const handleGameAction = useCallback(() => {
+    // Guard Clause: Abort if in a non-interactive game phase
+    if (gameState.phase === "menu" || gameState.phase === "item_selection") {
+      console.log("Game action blocked by phase:", gameState.phase);
+      return;
+    }
+
+    // Game Logic: Evaluate settled dice
+    if (
+      diceManagerRef.current?.hasSettledDice() &&
+      gameState.phase === "settled"
+    ) {
+      console.log("Handling game action: Evaluate");
+      const pickedUp = diceManagerRef.current.pickUpOutsideDice();
+      if (pickedUp === 0) onSuccessfulRoll();
+      else onFailedRoll();
+
+      if (currentAttempts >= 2 || pickedUp === 0) {
+        diceManagerRef.current.startNewRound();
+      }
+      return;
+    }
+
+    // Game Logic: Check throw cooldown
+    if (!diceManagerRef.current?.canThrow()) {
+      console.log("Handling game action: Cooldown active");
+      return;
+    }
+
+    // Default Action: Throw the dice
+    console.log("Handling game action: Throw Dice");
+    onAttempt();
+    const throwRaycaster = new THREE.Raycaster();
+    throwRaycaster.setFromCamera(new THREE.Vector2(0, 0), camera); // From center of screen
+    const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const intersectPoint = new THREE.Vector3();
+
+    if (throwRaycaster.ray.intersectPlane(floorPlane, intersectPoint)) {
+      diceManagerRef.current?.throwDice(
+        intersectPoint,
+        camera.position.clone(),
+        undefined,
+        throwRaycaster.ray.direction.clone()
       );
+    }
+  }, [
+    gameState.phase,
+    currentAttempts,
+    onSuccessfulRoll,
+    onFailedRoll,
+    onAttempt,
+    camera,
+    diceManagerRef
+  ]);
 
-      if (!diceManagerRef.current) return;
+  // This is the MASTER input handler for MOUSE
+  const handleMasterMouseClick = useCallback(
+    (event: MouseEvent) => {
+      // Only fire if the pointer is locked
+      if (!document.pointerLockElement) return;
 
-      // On mobile, we don't require pointer lock
-      if (!isMobile) {
-        if (!document.pointerLockElement) {
-          console.log("❌ Cursor not locked - ignoring click");
+      // Raycast from the center of the screen
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+      const intersects = raycaster.intersectObjects(scene.children, true);
+
+      if (intersects.length > 0) {
+        const hitObject = intersects[0].object;
+
+        // Check if the object we hit has its own 'onClick' handler
+        if (
+          hitObject.userData.onClick &&
+          typeof hitObject.userData.onClick === "function"
+        ) {
+          // We hit a UI element! Call its specific handler.
+          hitObject.userData.onClick(event);
           return;
         }
       }
 
-      if (gameState.phase === "menu" || gameState.phase === "item_selection") {
-        console.log(
-          "❌ Wrong game phase - ignoring interaction:",
-          gameState.phase
-        );
-        return;
-      }
+      // If we hit nothing, or the object had no handler, perform the default game action.
+      handleGameAction();
+    },
+    [camera, scene, handleGameAction]
+  );
 
-      // Perform raycast to check what surface we're clicking on
+  // Attach the single master listener
+  useEffect(() => {
+    // Use 'mousedown' for the most responsive feel
+    document.addEventListener("mousedown", handleMasterMouseClick);
+    return () => {
+      document.removeEventListener("mousedown", handleMasterMouseClick);
+    };
+  }, [handleMasterMouseClick]);
+
+  // MASTER input handler for TOUCH
+  const handleMasterTouch = useCallback(
+    (x: number, y: number) => {
+      // Touch raycasts from the tap position, not the center
       const raycaster = new THREE.Raycaster();
-      let mouse: THREE.Vector2;
-
-      // On mobile or pointer lock: raycast from center. Otherwise use provided coordinates
-      if (isMobile || document.pointerLockElement) {
-        mouse = new THREE.Vector2(0, 0);
-      } else if (clientX !== undefined && clientY !== undefined) {
-        const rect = gl.domElement.getBoundingClientRect();
-        mouse = new THREE.Vector2(
-          ((clientX - rect.left) / rect.width) * 2 - 1,
-          -((clientY - rect.top) / rect.height) * 2 + 1
-        );
-      } else {
-        mouse = new THREE.Vector2(0, 0);
-      }
-
+      const rect = gl.domElement.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((x - rect.left) / rect.width) * 2 - 1,
+        -((y - rect.top) / rect.height) * 2 + 1
+      );
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(scene.children, true);
 
-      // Check if we hit an item choice
-      const hitItemChoice = intersects.some((intersect) => {
-        const obj = intersect.object;
-        let current: THREE.Object3D | null = obj;
-        while (current) {
-          if (
-            current.name === "ItemChoice" ||
-            (current.parent && current.parent.name === "ItemChoice")
-          ) {
-            return true;
-          }
-          current = current.parent;
+      if (intersects.length > 0) {
+        const hitObject = intersects[0].object;
+        if (
+          hitObject.userData.onClick &&
+          typeof hitObject.userData.onClick === "function"
+        ) {
+          hitObject.userData.onClick();
+          return;
         }
-        return false;
-      });
-
-      if (hitItemChoice) {
-        console.log("🚫 Clicked on item choice - not throwing dice");
-        return;
       }
 
-      // Priority 1: If dice have settled, evaluate the round
-      if (
-        diceManagerRef.current.hasSettledDice() &&
-        gameState.phase === "settled"
-      ) {
-        console.log("🎲 Interaction on settled dice - evaluating round");
-
-        const pickedUp = diceManagerRef.current.pickUpOutsideDice();
-        console.log("Picked up", pickedUp, "dice outside receptacle");
-
-        if (pickedUp === 0) {
-          console.log("✅ All dice in receptacle - successful round!");
-          onSuccessfulRoll();
-          diceManagerRef.current.startNewRound();
-        } else {
-          console.log(
-            "❌",
-            pickedUp,
-            "dice were outside receptacle - failed attempt"
-          );
-          onFailedRoll();
-
-          if (currentAttempts >= 2) {
-            console.log(
-              "🔄 Round complete after failed attempts - starting new round"
-            );
-            diceManagerRef.current.startNewRound();
-          }
-        }
-
-        return;
-      }
-
-      // Priority 3: Check if we can throw
-      if (!diceManagerRef.current.canThrow()) {
-        console.log("Cannot throw - debounce active");
-        return;
-      }
-
-      // Priority 4: Throw dice
-      console.log("🎲 Starting new attempt...");
-      onAttempt();
-
-      const cameraPosition = camera.position.clone();
-
-      console.log("Throwing from camera look direction");
-      raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-
-      const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-      const intersectPoint = new THREE.Vector3();
-      const didIntersect = raycaster.ray.intersectPlane(
-        floorPlane,
-        intersectPoint
-      );
-
-      console.log("Floor intersect:", didIntersect, intersectPoint);
-
-      if (didIntersect && diceManagerRef.current) {
-        const cameraDirection = raycaster.ray.direction.clone();
-        console.log(
-          "Throwing dice from camera at:",
-          cameraPosition,
-          "to:",
-          intersectPoint,
-          "direction:",
-          cameraDirection
-        );
-        diceManagerRef.current.throwDice(
-          intersectPoint,
-          cameraPosition,
-          undefined,
-          cameraDirection
-        );
-      }
+      handleGameAction();
     },
-    [
-      camera,
-      gl,
-      scene,
-      gameState.phase,
-      onAttempt,
-      onSuccessfulRoll,
-      onFailedRoll,
-      onDiceSettled,
-      currentAttempts,
-      itemChoices.length,
-      diceCount,
-      coinCount,
-      d3Count,
-      d4Count,
-      thumbTackCount,
-      isMobile
-    ]
+    [gl, camera, scene, handleGameAction]
   );
 
-  // Handle click to throw dice or pick up outside dice
-  const handleClick = useCallback(
-    (event: MouseEvent) => {
-      handleThrowOrInteract(event.clientX, event.clientY);
-    },
-    [handleThrowOrInteract]
-  );
-
-  // Handle touch events for mobile
-  const handleTouchThrow = useCallback(
-    (x: number, y: number) => {
-      console.log("📱 Touch throw at:", x, y);
-      handleThrowOrInteract(x, y);
-    },
-    [handleThrowOrInteract]
-  );
-
-  // Use touch input system on mobile
   useTouchInput({
-    onTouchThrow: isMobile ? handleTouchThrow : undefined
+    onTouchThrow: isMobile ? handleMasterTouch : undefined
   });
 
-  // Handle automatic dice settling detection and score calculation
+  // --- END OF PASTE ---
+
   useFrame(() => {
-    // FIRST: Auto-detect when dice settle and calculate scores
     if (
       diceManagerRef.current?.hasSettledDice() &&
       gameState.phase === "throwing"
     ) {
-      // Get ACTUAL dice values and IDs from the physics simulation
       const settledDice = diceManagerRef.current.getSettledDice();
 
-      // Extract values, IDs, and modifiers for scoring (only dice in receptacle count)
       const diceInReceptacle = settledDice.filter((d) => d.inReceptacle);
       const diceValues = diceInReceptacle.map((d) => d.value);
       const diceIds = diceInReceptacle.map((d) => d.id);
@@ -758,27 +773,21 @@ export function Scene({
         scoreMultipliers
       );
 
-      // Calculate scores immediately when dice settle
       onDiceSettled(diceValues, diceIds, scoreMultipliers);
     }
 
-    // SECOND: Check for dice hover when settled
     if (diceManagerRef.current?.hasSettledDice()) {
       const raycaster = new THREE.Raycaster();
       raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
       const intersects = raycaster.intersectObjects(scene.children, true);
 
-      // Look for dice objects in the intersections
       let foundDice = false;
       for (const intersect of intersects) {
         const obj = intersect.object;
 
-        // Check if this object or any parent has a "dice" userData
         let current: THREE.Object3D | null = obj;
         while (current) {
           if (current.userData?.isDice) {
-            // Found a dice! Extract info
-            // For screen position, project the 3D position to screen space
             const vector = new THREE.Vector3();
             current.getWorldPosition(vector);
             vector.project(camera);
@@ -800,7 +809,6 @@ export function Scene({
               currencyEarned: current.userData.currencyEarned
             };
 
-            // Update both local ID for highlighting and parent for UI
             setHoveredDiceId(diceData.id);
             onDiceHover(diceData);
             foundDice = true;
@@ -822,34 +830,7 @@ export function Scene({
     }
   });
 
-  useEffect(() => {
-    const canvas = gl.domElement;
-
-    // Use mousedown instead of click for better pointer lock compatibility
-    const handleMouseDown = (event: MouseEvent) => {
-      console.log("Mousedown event fired, button:", event.button);
-      // Only handle left click
-      if (event.button === 0) {
-        handleClick(event);
-      }
-    };
-
-    // Add listeners to both canvas and document for pointer lock compatibility
-    canvas.addEventListener("mousedown", handleMouseDown);
-    canvas.addEventListener("click", handleMouseDown);
-    document.addEventListener("mousedown", handleMouseDown);
-
-    return () => {
-      canvas.removeEventListener("mousedown", handleMouseDown);
-      canvas.removeEventListener("click", handleMouseDown);
-      document.removeEventListener("mousedown", handleMouseDown);
-    };
-  }, [gl, handleClick]);
-
-  // Just a test GLTF model to verify loading
-  // const thumb = useLoader(GLTFLoader, "thumb.gltf");
   const table = useLoader(GLTFLoader, "table.gltf");
-  // const key = useLoader(GLTFLoader, "key.gltf");
   const television = useLoader(GLTFLoader, "television.gltf");
   const cabinet = useLoader(GLTFLoader, "cabinet.gltf");
   const tray = useLoader(GLTFLoader, "tray.gltf");
@@ -864,7 +845,7 @@ export function Scene({
         gamePhase={gameState.phase}
         yawRef={yawRef}
         pitchRef={pitchRef}
-        orientationRef={orientationRef} // Add this line
+        orientationRef={orientationRef}
       />
 
       <LightingRig
@@ -873,19 +854,21 @@ export function Scene({
         timeProgress={getTimeProgressRatio(successfulRolls)}
       />
 
-      {/* DEBUG: Ceiling marker directly above player start position */}
+      <FormOnCube />
+      <CharacterHUD3D
+        scores={gameState.scoring.currentScores}
+        timeOfDay={gameState.scoring.currentTimeOfDay}
+        currentAttempts={gameState.currentAttempts}
+        maxAttempts={2}
+        balance={playerBalance}
+        currentHP={100}
+      />
+
       <mesh position={[0.28, 2.8, 1.2]}>
         <boxGeometry args={[0.5, 0.1, 0.5]} />
         <meshBasicMaterial color="hotpink" />
       </mesh>
 
-      {/* Test model - thumb tack on receptacle */}
-      {/* <primitive
-        object={thumb.scene}
-        position={getThumbPosition()}
-        scale={0.145}
-        rotation={[Math.PI / 2.1, Math.PI, 0.7]}
-      /> */}
       <primitive
         object={table.scene}
         position={[0, -0.01, 2.21]}
@@ -907,11 +890,10 @@ export function Scene({
 
       <primitive object={tray.scene} position={RECEPTACLE_POSITION} scale={1} />
       <Suspense fallback={null}>
-        {/* Physics world for dice - optimized for performance */}
         <Physics
           gravity={[0, -9.66, 0]}
-          timeStep={1 / 60} // Fixed timestep for consistency
-          paused={gameState.phase === "menu"} // Pause physics in menu
+          timeStep={1 / 60}
+          paused={gameState.phase === "menu"}
         >
           <DiceManager
             ref={diceManagerRef}
@@ -945,18 +927,6 @@ export function Scene({
             previousScores={previousScores}
           />
 
-          <Imp
-            position={[0.25, 0.66, 2.38]}
-            scale={0.1}
-            rotation={[0, Math.PI / 1.01, 0]}
-          />
-          <Imp
-            position={[0.1, 0.66, 2.35]}
-            scale={0.12}
-            rotation={[0, Math.PI / 1.2, 0]}
-            animationOffset={1.82}
-          />
-          {/* Ground plane - using explicit CuboidCollider */}
           <RigidBody
             type="fixed"
             position={[0, -0.05, 0]}
@@ -966,26 +936,19 @@ export function Scene({
             <CuboidCollider args={[10, 0.05, 10]} />
           </RigidBody>
 
-          {/* Invisible boundary walls using CuboidCollider */}
-          {/* Back wall */}
           <RigidBody type="fixed" position={[0, 1.5, -5]} friction={0.5}>
             <CuboidCollider args={[5, 1.5, 0.1]} />
           </RigidBody>
-          {/* Front wall */}
           <RigidBody type="fixed" position={[0, 1.5, 5]} friction={0.5}>
             <CuboidCollider args={[5, 1.5, 0.1]} />
           </RigidBody>
-          {/* Left wall */}
           <RigidBody type="fixed" position={[-5, 1.5, 0]} friction={0.5}>
             <CuboidCollider args={[0.1, 1.5, 5]} />
           </RigidBody>
-          {/* Right wall */}
           <RigidBody type="fixed" position={[5, 1.5, 0]} friction={0.5}>
             <CuboidCollider args={[0.1, 1.5, 5]} />
           </RigidBody>
 
-          {/* Furniture colliders */}
-          {/* Bed - Combined bounding box for entire bed */}
           <RigidBody
             type="fixed"
             position={[-2, 0.4, -2]}
@@ -995,7 +958,6 @@ export function Scene({
             <CuboidCollider args={[1.6, 0.5, 2.1]} />
           </RigidBody>
 
-          {/* Bureau - Including drawers */}
           <RigidBody
             type="fixed"
             position={[3, 0.8, -4.1]}
@@ -1005,7 +967,6 @@ export function Scene({
             <CuboidCollider args={[0.9, 0.6, 0.55]} />
           </RigidBody>
 
-          {/* TV Stand - Combined bounding box */}
           <RigidBody
             type="fixed"
             position={[0, 0.9, -4.4]}
@@ -1015,7 +976,6 @@ export function Scene({
             <CuboidCollider args={[1.25, 1.0, 0.4]} />
           </RigidBody>
 
-          {/* Coffee Table - In second room */}
           <RigidBody
             type="fixed"
             position={[0, 0.5, 10]}
@@ -1025,7 +985,6 @@ export function Scene({
             <CuboidCollider args={[0.9, 0.25, 0.6]} />
           </RigidBody>
 
-          {/* Dice Receptacle - now includes its own collision boxes */}
           <DiceReceptacle
             position={RECEPTACLE_POSITION}
             hellFactor={hellFactor}
@@ -1033,18 +992,38 @@ export function Scene({
             spotlightIntensity={spotlightIntensity}
             spotlightAngle={spotlightAngle}
           />
+          {enemies.map((enemy, index) => (
+            <Fragment key={enemy.id}>
+              {enemy.portalProgress > 0 && (
+                <Portal
+                  progress={enemy.portalProgress}
+                  position={[
+                    enemy.position[0],
+                    enemy.position[1],
+                    enemy.position[2] + 0.01
+                  ]}
+                />
+              )}
+              <Imp
+                position={enemy.position}
+                scale={0.1}
+                animationOffset={index}
+                entranceAnimationProgress={enemy.entranceAnimationProgress}
+                playEntranceAnimation={true}
+                rotation={[0, Math.PI / (index * 0.2 - 1.1), 0]}
+                sensor={enemy.entranceAnimationProgress < 1}
+              />
+            </Fragment>
+          ))}
 
-          {/* Debug: Dice Tray Bounds Visualization */}
           {import.meta.env.DEV && <DiceTrayBoundsDebug />}
 
-          {/* Hourglass - physics-enabled object on receptacle */}
           <Hourglass
             position={getHourglassPosition()}
             hellFactor={hellFactor}
             onBumped={() => console.log("⏳ Hourglass was bumped by dice!")}
           />
 
-          {/* Tower Card - must be inside Physics for sensor collision detection */}
           {towerCardEnabled && (
             <Card
               position={getTowerCardPosition()}
@@ -1067,7 +1046,6 @@ export function Scene({
             />
           )}
 
-          {/* Sun Card - must be inside Physics for sensor collision detection */}
           {sunCardEnabled && (
             <Card
               position={getSunCardPosition()}
@@ -1090,20 +1068,16 @@ export function Scene({
             />
           )}
 
-          {/* Store Choices */}
-          {storeChoices.map((item, index) => (
+          {/* {storeChoices.map((item, index) => (
             <ItemChoice
               key={`store-${index}`}
               item={item}
               position={[-0.3 + index * 0.3, 0.85, 2.68]}
-              // onPurchase is called on success to add the item
               onPurchase={() => onItemSelected(item)}
-              // spendCurrency handles the transaction
               spendCurrency={() => spendCurrency("cents", getItemPrice(item))}
             />
-          ))}
+          ))} */}
 
-          {/* Free Item Choices */}
           {itemChoices.map((item, index) => (
             <ItemChoice
               key={`reward-${index}`}
@@ -1115,16 +1089,12 @@ export function Scene({
           ))}
         </Physics>
       </Suspense>
-      {/* position={[-2.2, 0.0, 4.2]} */}
-      {/* House structure (floors, walls, stairs) */}
       <House hellFactor={hellFactor} />
 
-      {/* Bedroom (upper level) */}
       <Room hellFactor={hellFactor} />
       <Bed hellFactor={hellFactor} />
       <Bureau hellFactor={hellFactor} />
       <TVStand hellFactor={hellFactor} />
-      {/* <Window hellFactor={hellFactor} /> */}
       <CeilingLight hellFactor={hellFactor} />
       <Decorations hellFactor={hellFactor} />
       <Ashtray
@@ -1132,7 +1102,6 @@ export function Scene({
         cigaretteCount={inventory.passiveEffects.cigarette}
       />
 
-      {/* Cigarette - appears in ashtray on bureau when acquired */}
       {inventory.passiveEffects.cigarette > 0 && (
         <Cigarette
           position={[
@@ -1149,7 +1118,6 @@ export function Scene({
         />
       )}
 
-      {/* Incense Stick - appears at bottom right corner of dice tray, angled inward and upward */}
       {inventory.consumables.find((c) => c.itemId === "incense") && (
         <IncenseStick
           position={[

@@ -1,0 +1,318 @@
+/* ============================================= */
+/* ===== CHARACTER HUD (RPG THEME) STYLES ====== */
+/* ============================================= */
+
+/* Using CSS variables for colors can make theming easier.
+   Assuming these are defined in a global stylesheet. */
+:root {
+  --color-hp: #ff4d6d;
+  --color-hp-dark: #b3364b;
+  --color-hp-glow: rgba(255, 77, 109, 0.5);
+
+  --color-ability-bg: rgba(10, 157, 255, 0.12);
+  --color-ability-border: rgba(10, 157, 255, 0.25);
+  --color-ability-hover-bg: rgba(10, 157, 255, 0.2);
+  --color-ability-hover-border: rgba(10, 157, 255, 0.4);
+  --color-ability-text: #89d1ff;
+
+  --color-gold: #ffd700;
+  --color-silver: #c0c0c0;
+  --color-copper: #b87333;
+  --color-text-light: #e0e0e0;
+  --color-text-dark: #a0a0a0;
+  --color-text-header: #ffffff;
+
+  --bw-lightgravel: #998f84;
+}
+
+/* ===== MAIN CONTAINER ===== */
+.character-hud {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 320px;
+  z-index: 100;
+  pointer-events: none;
+}
+
+/* ===== HUD PANEL ===== */
+.hud-panel {
+  background: rgba(20, 19, 26, 0.92);
+  backdrop-filter: blur(12px);
+  border-radius: 12px;
+  border: 1px solid rgba(153, 143, 132, 0.1);
+  box-shadow: 0 8px 32px rgba(28, 27, 26, 0.4),
+    0 0 0 1px rgba(248, 246, 242, 0.05) inset;
+  overflow: hidden;
+  pointer-events: auto;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===== HEADER SECTION ===== */
+.hud-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(153, 143, 132, 0.08);
+  background: linear-gradient(
+    180deg,
+    rgba(248, 246, 242, 0.03) 0%,
+    transparent 100%
+  );
+}
+
+.hud-title {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--color-text-header);
+  text-shadow: 0 2px 8px rgba(28, 27, 26, 0.3);
+}
+
+.attempt-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(248, 246, 242, 0.03);
+  border-radius: 6px;
+  border: 1px solid rgba(153, 143, 132, 0.08);
+}
+
+.attempt-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: var(--bw-lightgravel);
+  text-transform: uppercase;
+}
+
+.attempt-dots {
+  display: flex;
+  gap: 8px;
+}
+
+.attempt-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(248, 246, 242, 0.1);
+  border: 2px solid rgba(153, 143, 132, 0.2);
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.dot-inner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  background: transparent;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: all 0.3s ease;
+}
+
+.attempt-dot.used {
+  border-color: var(--color-ability-border);
+  background: var(--color-ability-bg);
+}
+
+.attempt-dot.used .dot-inner {
+  background: var(--color-ability-text);
+  box-shadow: 0 0 4px var(--color-ability-text);
+}
+
+/* ===== BODY SECTION ===== */
+.hud-body {
+  padding: 16px 20px;
+}
+
+/* --- Character Stats (HP Bar) --- */
+.character-stats {
+  margin-bottom: 20px;
+}
+
+.stat-bar {
+  width: 100%;
+}
+
+.stat-bar-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-light);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.stat-bar-background {
+  height: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.stat-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--color-hp-dark), var(--color-hp));
+  box-shadow: 0 0 12px var(--color-hp-glow);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* --- Abilities Section --- */
+.abilities-section {
+  margin-top: 16px;
+}
+
+.abilities-title {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-text-light);
+  border-bottom: 1px solid rgba(153, 143, 132, 0.1);
+  padding-bottom: 8px;
+}
+
+.abilities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 50px; /* Ensures layout doesn't jump when abilities appear */
+}
+
+.ability-item {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ability-text);
+  background: var(--color-ability-bg);
+  border: 1px solid var(--color-ability-border);
+  transition: all 0.2s ease;
+}
+
+.ability-item:hover {
+  background: var(--color-ability-hover-bg);
+  border-color: var(--color-ability-hover-border);
+  transform: translateX(4px);
+}
+
+.ability-item.newly-enabled {
+  animation: achievementPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 0 16px rgba(10, 157, 255, 0.4);
+  border-color: var(--color-ability-hover-border);
+}
+
+@keyframes achievementPop {
+  0% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.no-abilities-text {
+  font-size: 13px;
+  color: var(--color-text-dark);
+  font-style: italic;
+  padding: 10px 14px;
+  text-align: center;
+}
+
+/* ===== FOOTER (WALLET) ===== */
+.hud-footer {
+  padding: 14px 20px;
+  border-top: 1px solid rgba(153, 143, 132, 0.08);
+  background: linear-gradient(
+    0deg,
+    rgba(248, 246, 242, 0.03) 0%,
+    transparent 100%
+  );
+  margin-top: auto;
+}
+
+.wallet-row {
+  display: flex;
+  justify-content: flex-end; /* Align to the right */
+  align-items: center;
+}
+
+.wallet-amount {
+  display: flex;
+  gap: 16px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.wallet-amount span {
+  position: relative;
+  padding-left: 20px;
+}
+
+/* Using pseudo-elements for coin icons */
+.wallet-amount span::before {
+  content: "●";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  text-align: center;
+  line-height: 14px;
+}
+
+.currency-gold {
+  color: var(--color-gold);
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+}
+.currency-gold::before {
+  color: var(--color-gold);
+  text-shadow: 0 0 6px rgba(255, 215, 0, 0.8);
+}
+
+.currency-silver {
+  color: var(--color-silver);
+  text-shadow: 0 0 8px rgba(192, 192, 192, 0.5);
+}
+.currency-silver::before {
+  color: var(--color-silver);
+  text-shadow: 0 0 6px rgba(192, 192, 192, 0.7);
+}
+
+.currency-copper {
+  color: var(--color-copper);
+  text-shadow: 0 0 8px rgba(184, 115, 51, 0.6);
+}
+.currency-copper::before {
+  color: var(--color-copper);
+  text-shadow: 0 0 6px rgba(184, 115, 51, 0.8);
+}
+
+/* ===== RESPONSIVE ADJUSTMENTS ===== */
+@media (max-width: 768px) {
+  .character-hud {
+    top: 8px;
+    right: 8px;
+    width: min(280px, calc(100vw - 16px));
+  }
+}
