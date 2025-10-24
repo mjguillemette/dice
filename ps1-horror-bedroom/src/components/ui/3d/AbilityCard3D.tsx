@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { a, useSpring } from "@react-spring/three";
 import * as THREE from "three";
@@ -9,7 +9,7 @@ import { IconBox3D } from "./IconBox3D";
 import { Badge3D } from "./Badge3D";
 import { MiniDice3D } from "./MiniDice3D";
 
-type AbilityState = "inactive" | "active" | "hovered" | "disabled";
+type AbilityState = "inactive" | "active" | "hovered" | "disabled" | "would_disable";
 
 export interface AbilityCard3DProps {
   title: string;
@@ -26,11 +26,13 @@ export interface AbilityCard3DProps {
   [key: string]: any; // for position
 }
 
+// Using Bad Wolf color theme
 const stateColors = {
-  inactive: "#222222",
-  active: "#004422",
-  hovered: "#006633",
-  disabled: "#111111"
+  inactive: "#242321",      // --bw-darkgravel
+  active: "#35322d",        // --bw-deepergravel
+  hovered: "#88633f",       // --bw-darkroast (brown)
+  disabled: "#1c1b1a",      // --bw-blackgravel
+  would_disable: "#b88853"  // --bw-toffee (lighter brown to show conflict)
 };
 
 export const AbilityCard3D = ({
@@ -58,11 +60,12 @@ export const AbilityCard3D = ({
   // --- NEW: Handle Click (Exact same pattern as Button3D) ---
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
-      // Check internal hover state AND ensure the card isn't disabled
+      // Check internal hover state AND ensure the card isn't disabled or would_disable
       if (
         isHovered &&
         externalState !== "disabled" &&
-        externalState !== "inactive"
+        externalState !== "inactive" &&
+        externalState !== "would_disable"
       ) {
         event.stopPropagation(); // Consume the click!
         onClick?.(event);
@@ -123,7 +126,7 @@ export const AbilityCard3D = ({
 
   return (
     // Use a.group for scale animation
-    <a.group ref={groupRef} scale={scale} {...props}>
+    <a.group ref={groupRef} scale={scale} name="ui_3d" {...props}>
       {/* Pass animated color and opacity to UIPanel3D props */}
       {/* ADD REF to UIPanel's internal mesh */}
       <UIPanel3D
@@ -133,6 +136,7 @@ export const AbilityCard3D = ({
         depth={0.05}
         color={panelColor}
         opacity={panelOpacity}
+        raycastable={true} // Enable raycasting for ability cards
       >
         {/* Badge (Top Right) */}
         {finalState === "active" && (
@@ -153,6 +157,13 @@ export const AbilityCard3D = ({
           <Badge3D
             label="Blocked"
             color="#550000"
+            position={[width / 2 - 0.1, height / 2 - 0.05, 0.03]}
+          />
+        )}
+        {externalState === "would_disable" && (
+          <Badge3D
+            label="Conflicts"
+            color="#AA4400"
             position={[width / 2 - 0.1, height / 2 - 0.05, 0.03]}
           />
         )}

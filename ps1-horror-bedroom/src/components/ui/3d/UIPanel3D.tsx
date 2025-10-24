@@ -16,6 +16,7 @@ interface UIPanel3DProps {
   color?: string | THREE.Color | any; // Accept animated color
   opacity?: number | any; // Accept animated opacity
   meshRef?: React.Ref<THREE.Mesh>; // New prop for mesh ref
+  raycastable?: boolean; // New prop to allow raycasting
   [key: string]: any;
 }
 
@@ -30,6 +31,7 @@ export const UIPanel3D = forwardRef<THREE.Group, UIPanel3DProps>(
       color = "#16161d", // Default color
       opacity = 1, // Default opacity
       meshRef, // Destructure meshRef
+      raycastable = false, // Default to not raycastable
       ...props
     },
     ref // 'ref' here is the ref for the main group
@@ -38,7 +40,7 @@ export const UIPanel3D = forwardRef<THREE.Group, UIPanel3DProps>(
       {/* The main panel mesh */}
       <mesh
         ref={meshRef} // Apply the specific meshRef to the mesh
-        raycast={() => null} // Ignore raycasts for the background panel itself
+        raycast={raycastable ? undefined : () => null} // Allow raycasts if raycastable is true
         geometry={panelGeometry(width, height, depth)}
         // Material properties are now handled below
       >

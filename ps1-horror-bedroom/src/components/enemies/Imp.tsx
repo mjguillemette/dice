@@ -14,6 +14,13 @@ interface ImpProps extends RigidBodyProps {
   entranceAnimationProgress?: number;
   debugMode?: boolean;
   sensor?: boolean;
+  onClick?: () => void;
+  onPointerOver?: (event: THREE.Event) => void;
+  onPointerOut?: (event: THREE.Event) => void;
+  isSelected?: boolean;
+  isHovered?: boolean;
+  enemyId?: number; // Enemy ID for userData
+  enemyData?: any; // Full enemy data for userData
 }
 
 export function Imp({
@@ -23,6 +30,13 @@ export function Imp({
   playEntranceAnimation = false,
   entranceAnimationProgress = 1,
   sensor = false,
+  onClick,
+  onPointerOver,
+  onPointerOut,
+  isSelected = false,
+  isHovered = false,
+  enemyId,
+  enemyData,
   ...props
 }: ImpProps) {
   const groupRef = useRef<THREE.Group>(null);
@@ -88,28 +102,109 @@ export function Imp({
 
   return (
     <RigidBody {...props} colliders={false} type="kinematicPosition">
-      <primitive
-        ref={groupRef}
-        object={copiedScene}
-        scale={scaleVec}
-        position={IMP_PIVOT_OFFSET}
-      />
-      <CuboidCollider
-        args={colliderArgs}
-        position={colliderPosition}
-        sensor={sensor}
-      />
+      <group>
+        <primitive
+          ref={groupRef}
+          object={copiedScene}
+          scale={scaleVec}
+          position={IMP_PIVOT_OFFSET}
+        />
 
-      {debugMode && (
-        <mesh position={colliderPosition}>
-          <boxGeometry
-            args={
-              colliderArgs.map((arg) => arg * 2) as [number, number, number]
-            }
-          />
-          <meshBasicMaterial color="red" wireframe />
+        {/* Invisible clickable mesh that covers the imp */}
+        <mesh
+          position={colliderPosition}
+          userData={{
+            isEnemy: true,
+            enemyId: enemyId,
+            enemyData: enemyData,
+            onClick: onClick
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick?.();
+          }}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            document.body.style.cursor = "pointer";
+            onPointerOver?.(e);
+          }}
+          onPointerOut={(e) => {
+            e.stopPropagation();
+            document.body.style.cursor = "auto";
+            onPointerOut?.(e);
+          }}
+        >
+          <boxGeometry args={[
+            colliderArgs[0] * 2,
+            colliderArgs[1] * 2,
+            colliderArgs[2] * 2
+          ]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
         </mesh>
-      )}
+
+        <CuboidCollider
+          args={colliderArgs}
+          position={colliderPosition}
+          sensor={sensor}
+        />
+
+        {/* Hover indicator - ring and outline glow */}
+        {isHovered && !isSelected && (
+          <>
+            <mesh position={[0, colliderPosition[1], 0]}>
+              <ringGeometry args={[0.3, 0.35, 32]} />
+              <meshBasicMaterial color="#fade3e" side={THREE.DoubleSide} />
+            </mesh>
+            {/* Outline glow using scaled model */}
+            <primitive
+              object={copiedScene.clone()}
+              scale={scaleVec.map(s => s * 1.1) as [number, number, number]}
+              position={IMP_PIVOT_OFFSET}
+            >
+              <meshBasicMaterial
+                color="#fade3e"
+                transparent
+                opacity={0.3}
+                side={THREE.BackSide}
+              />
+            </primitive>
+          </>
+        )}
+
+        {/* Selection indicator */}
+        {isSelected && (
+          <>
+            <mesh position={[0, colliderPosition[1], 0]}>
+              <ringGeometry args={[0.3, 0.35, 32]} />
+              <meshBasicMaterial color="#ff2c4b" side={THREE.DoubleSide} />
+            </mesh>
+            {/* Outline glow using scaled model */}
+            <primitive
+              object={copiedScene.clone()}
+              scale={scaleVec.map(s => s * 1.1) as [number, number, number]}
+              position={IMP_PIVOT_OFFSET}
+            >
+              <meshBasicMaterial
+                color="#ff2c4b"
+                transparent
+                opacity={0.4}
+                side={THREE.BackSide}
+              />
+            </primitive>
+          </>
+        )}
+
+        {debugMode && (
+          <mesh position={colliderPosition}>
+            <boxGeometry
+              args={
+                colliderArgs.map((arg) => arg * 2) as [number, number, number]
+              }
+            />
+            <meshBasicMaterial color="red" wireframe />
+          </mesh>
+        )}
+      </group>
     </RigidBody>
   );
 }

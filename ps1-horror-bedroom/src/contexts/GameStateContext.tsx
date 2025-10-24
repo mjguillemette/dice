@@ -11,6 +11,7 @@ import {
   type GameState,
   type GameAction
 } from "../systems/gameStateSystem";
+import type { Enemy } from "../types/combat.types";
 
 interface GameStateContextValue {
   gameState: GameState;
@@ -23,6 +24,17 @@ interface GameStateContextValue {
   failedRoll: () => void;
   itemSelected: () => void;
   returnToMenu: () => void;
+  // Combat methods
+  combatStart: (enemies: Enemy[]) => void;
+  combatEnemyRoll: () => void;
+  combatPlayerTurnStart: () => void;
+  combatSelectAbility: (abilityCategory: string) => void;
+  combatSelectEnemy: (enemyId: number) => void;
+  combatUseAbility: (enemyId?: number) => void;
+  combatApplyDamageToEnemy: (enemyId: number, damage: number) => void;
+  combatApplyDamageToPlayer: (damage: number) => void;
+  combatResolve: () => void;
+  combatEnd: () => void;
 }
 
 const GameStateContext = createContext<GameStateContextValue | undefined>(
@@ -80,6 +92,47 @@ export function GameStateProvider({ children }: GameStateProviderProps) {
     dispatch({ type: "RETURN_TO_MENU" });
   }, []);
 
+  // Combat convenience methods
+  const combatStart = useCallback((enemies: Enemy[]) => {
+    dispatch({ type: "COMBAT_START", enemies });
+  }, []);
+
+  const combatEnemyRoll = useCallback(() => {
+    dispatch({ type: "COMBAT_ENEMY_ROLL" });
+  }, []);
+
+  const combatPlayerTurnStart = useCallback(() => {
+    dispatch({ type: "COMBAT_PLAYER_TURN_START" });
+  }, []);
+
+  const combatSelectAbility = useCallback((abilityCategory: string) => {
+    dispatch({ type: "COMBAT_SELECT_ABILITY", abilityCategory });
+  }, []);
+
+  const combatSelectEnemy = useCallback((enemyId: number) => {
+    dispatch({ type: "COMBAT_SELECT_ENEMY", enemyId });
+  }, []);
+
+  const combatUseAbility = useCallback((enemyId?: number) => {
+    dispatch({ type: "COMBAT_USE_ABILITY", enemyId });
+  }, []);
+
+  const combatApplyDamageToEnemy = useCallback((enemyId: number, damage: number) => {
+    dispatch({ type: "COMBAT_APPLY_DAMAGE_TO_ENEMY", enemyId, damage });
+  }, []);
+
+  const combatApplyDamageToPlayer = useCallback((damage: number) => {
+    dispatch({ type: "COMBAT_APPLY_DAMAGE_TO_PLAYER", damage });
+  }, []);
+
+  const combatResolve = useCallback(() => {
+    dispatch({ type: "COMBAT_RESOLVE" });
+  }, []);
+
+  const combatEnd = useCallback(() => {
+    dispatch({ type: "COMBAT_END" });
+  }, []);
+
   const value: GameStateContextValue = {
     gameState,
     dispatch,
@@ -89,7 +142,17 @@ export function GameStateProvider({ children }: GameStateProviderProps) {
     successfulRoll,
     failedRoll,
     itemSelected,
-    returnToMenu
+    returnToMenu,
+    combatStart,
+    combatEnemyRoll,
+    combatPlayerTurnStart,
+    combatSelectAbility,
+    combatSelectEnemy,
+    combatUseAbility,
+    combatApplyDamageToEnemy,
+    combatApplyDamageToPlayer,
+    combatResolve,
+    combatEnd
   };
 
   return (

@@ -1,4 +1,3 @@
-import React from "react";
 import { UIPanel3D } from "./UIPanel3D";
 import { Text3D } from "./Text3D";
 

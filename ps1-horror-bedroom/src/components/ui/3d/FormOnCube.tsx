@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCursor, Text } from "@react-three/drei";
 import { a, useSpring } from "@react-spring/three";
 import * as THREE from "three";

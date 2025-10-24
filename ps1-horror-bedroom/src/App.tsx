@@ -3,16 +3,17 @@ import { Canvas } from "@react-three/fiber";
 import Scene from "./components/Scene";
 import DevPanel from "./components/DevPanel";
 import Crosshair from "./components/ui/Crosshair";
-import GameHUD from "./components/ui/GameHUD";
 import { type DiceData } from "./components/ui/DiceInfo";
 import TableItemInfo, {
   type TableItemData
 } from "./components/ui/TableItemInfo";
+import EnemyInfo, { type EnemyInfoData } from "./components/ui/EnemyInfo";
 import MobileControls from "./components/ui/MobileControls";
 import { isMobileDevice } from "./utils/mobileDetection";
 import { useUISound } from "./systems/audioSystem";
 import { useWallet } from "./hooks/useWallet";
 import { usePersistence } from "./hooks/usePersistence";
+import { useDiceConfiguration } from "./hooks/useDiceConfiguration";
 import { GameStateProvider, useGameState } from "./contexts/GameStateContext";
 import {
   type PlayerInventory,
@@ -21,11 +22,12 @@ import {
   applyItemToInventory,
   type ItemDefinition,
   generateStoreChoices,
+  activateConsumable,
   getItemPrice,
-  isConsumableActive,
-  activateConsumable
+  isConsumableActive
 } from "./systems/itemSystem";
 import "./App.css";
+import { CombinedMenu3D } from "./components/ui/3d/CombinedMenu3D";
 
 function AppContent() {
   const {
@@ -38,32 +40,15 @@ function AppContent() {
     startGame: onStartGame
   } = useGameState();
 
+  // Dice configuration - consolidated into single hook
+  const [diceConfig, diceActions] = useDiceConfiguration();
+
   const [cameraName, setCameraName] = useState("First Person");
   const [cinematicMode, setCinematicMode] = useState(false);
   // Visual corruption state (hellFactor) - now driven by gameState.corruption in Scene
   const [hellFactor, setHellFactor] = useState(0);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_autoCorruption, _setAutoCorruption] = useState(false); // Unused - kept for future feature
-  const [diceCount, setDiceCount] = useState(2);
-  const [coinCount, setCoinCount] = useState(1);
-  const [nickelCount, setNickelCount] = useState(0);
-  const [d3Count, setD3Count] = useState(0);
-  const [d4Count, setD4Count] = useState(0);
-  const [d8Count, setD8Count] = useState(0);
-  const [d10Count, setD10Count] = useState(0);
-  const [d12Count, setD12Count] = useState(0);
-  const [d20Count, setD20Count] = useState(0);
-  const [thumbTackCount, setThumbTackCount] = useState(2);
-  // Special dice
-  const [goldenPyramidCount, setGoldenPyramidCount] = useState(0);
-  const [caltropCount, setCaltropCount] = useState(0);
-  const [casinoRejectCount, setCasinoRejectCount] = useState(0);
-  const [weightedDieCount, setWeightedDieCount] = useState(0);
-  const [loadedCoinCount, setLoadedCoinCount] = useState(0);
-  const [cursedDieCount, setCursedDieCount] = useState(0);
-  const [splitDieCount, setSplitDieCount] = useState(0);
-  const [mirrorDieCount, setMirrorDieCount] = useState(0);
-  const [riggedDieCount, setRiggedDieCount] = useState(0);
   const [diceScore, setDiceScore] = useState(0);
   const [diceShaderEnabled, _setDiceShaderEnabled] = useState(false);
   const [towerCardEnabled, setTowerCardEnabled] = useState(false);
@@ -76,9 +61,34 @@ function AppContent() {
   const [_showCardDebugBounds, _setShowCardDebugBounds] = useState(false);
   const [rollHistory, setRollHistory] = useState<number[]>([]);
   const [_diceSettled, setDiceSettled] = useState(false);
-  const [hoveredDice, setHoveredDice] = useState<DiceData | null>(null);
+  const [_hoveredDice, setHoveredDice] = useState<DiceData | null>(null);
   const [hoveredTableItem, setHoveredTableItem] =
     useState<TableItemData | null>(null);
+  const [hoveredEnemy, setHoveredEnemy] = useState<EnemyInfoData | null>(null);
+
+  // Combat log state
+  const [combatLogMessages, setCombatLogMessages] = useState<Array<{
+    id: string;
+    text: string;
+    color?: string;
+    timestamp: number;
+  }>>([]);
+
+  const addCombatLog = useCallback((text: string, color?: string) => {
+    const newMessage = {
+      id: `${Date.now()}-${Math.random()}`,
+      text,
+      color,
+      timestamp: Date.now()
+    };
+    setCombatLogMessages(prev => [...prev, newMessage]);
+    console.log(`📜 Combat Log: ${text}`);
+  }, []);
+
+  // Expose addCombatLog for testing
+  useEffect(() => {
+    (window as any).addCombatLog = addCombatLog;
+  }, [addCombatLog]);
   const [highlightedDiceIds, setHighlightedDiceIds] = useState<number[]>([]);
 
   // Track previous roll's achieved categories for combo detection
@@ -297,29 +307,31 @@ function AppContent() {
   }, [gameState.phase, inventory, itemChoices.length, gameState.daysMarked]);
 
   useEffect(() => {
-    setDiceCount(inventory.dice.d6);
-    setCoinCount(inventory.dice.coins);
-    setNickelCount(inventory.dice.nickels);
-    setThumbTackCount(inventory.dice.thumbtacks);
-    setD3Count(inventory.dice.d3);
-    setD4Count(inventory.dice.d4);
-    setD8Count(inventory.dice.d8);
-    setD10Count(inventory.dice.d10);
-    setD12Count(inventory.dice.d12);
-    setD20Count(inventory.dice.d20);
+    // Update dice configuration from inventory
+    diceActions.setD6Count(inventory.dice.d6);
+    diceActions.setCoinCount(inventory.dice.coins);
+    diceActions.setNickelCount(inventory.dice.nickels);
+    diceActions.setThumbTackCount(inventory.dice.thumbtacks);
+    diceActions.setD3Count(inventory.dice.d3);
+    diceActions.setD4Count(inventory.dice.d4);
+    diceActions.setD8Count(inventory.dice.d8);
+    diceActions.setD10Count(inventory.dice.d10);
+    diceActions.setD12Count(inventory.dice.d12);
+    diceActions.setD20Count(inventory.dice.d20);
     // Special dice
-    setGoldenPyramidCount(inventory.dice.golden_pyramid);
-    setCaltropCount(inventory.dice.caltrop);
-    setCasinoRejectCount(inventory.dice.casino_reject);
-    setWeightedDieCount(inventory.dice.weighted_die);
-    setLoadedCoinCount(inventory.dice.loaded_coin);
-    setCursedDieCount(inventory.dice.cursed_die);
-    setSplitDieCount(inventory.dice.split_die);
-    setMirrorDieCount(inventory.dice.mirror_die);
-    setRiggedDieCount(inventory.dice.rigged_die);
+    diceActions.setGoldenPyramidCount(inventory.dice.golden_pyramid);
+    diceActions.setCaltropCount(inventory.dice.caltrop);
+    diceActions.setCasinoRejectCount(inventory.dice.casino_reject);
+    diceActions.setWeightedDieCount(inventory.dice.weighted_die);
+    diceActions.setLoadedCoinCount(inventory.dice.loaded_coin);
+    diceActions.setCursedDieCount(inventory.dice.cursed_die);
+    diceActions.setSplitDieCount(inventory.dice.split_die);
+    diceActions.setMirrorDieCount(inventory.dice.mirror_die);
+    diceActions.setRiggedDieCount(inventory.dice.rigged_die);
+    // Cards
     setTowerCardEnabled(inventory.cards.tower);
     setSunCardEnabled(inventory.cards.sun);
-  }, [inventory]);
+  }, [inventory, diceActions]);
 
   // Auto-activate incense when first combo occurs
   useEffect(() => {
@@ -587,26 +599,12 @@ function AppContent() {
         )}
 
       {gameState.phase !== "menu" && !cinematicMode && <Crosshair />}
-      {gameState.phase !== "menu" && (
-        <GameHUD
-          scores={gameState.scoring.currentScores}
-          timeOfDay={gameState.scoring.currentTimeOfDay}
-          currentAttempts={gameState.currentAttempts}
-          maxAttempts={2}
-          balance={balances.cents}
-          hoveredDice={hoveredDice}
-          onScoreHover={(diceIds) => setHighlightedDiceIds(diceIds || [])}
-          dailyTarget={gameState.dailyTarget}
-          dailyBestScore={gameState.dailyBestScore}
-          corruption={gameState.corruption}
-          successfulRolls={gameState.successfulRolls}
-          daysMarked={gameState.daysMarked}
-          incenseActive={isConsumableActive(inventory, "incense")}
-        />
-      )}
 
       {/* Table Item Tooltip - shown when hovering cigarette or incense */}
       <TableItemInfo itemData={hoveredTableItem} />
+
+      {/* Enemy Tooltip - shown when hovering enemies */}
+      <EnemyInfo enemyData={hoveredEnemy} />
 
       {/* The Canvas is ONLY for 3D components */}
       <Canvas
@@ -624,25 +622,25 @@ function AppContent() {
           onHellFactorChange={setHellFactor}
           onAutoCorruptionChange={_setAutoCorruption}
           onCursorLockChange={setIsCursorLocked}
-          diceCount={diceCount}
-          coinCount={coinCount}
-          nickelCount={nickelCount}
-          d3Count={d3Count}
-          d4Count={d4Count}
-          d8Count={d8Count}
-          d10Count={d10Count}
-          d12Count={d12Count}
-          d20Count={d20Count}
-          thumbTackCount={thumbTackCount}
-          goldenPyramidCount={goldenPyramidCount}
-          caltropCount={caltropCount}
-          casinoRejectCount={casinoRejectCount}
-          weightedDieCount={weightedDieCount}
-          loadedCoinCount={loadedCoinCount}
-          cursedDieCount={cursedDieCount}
-          splitDieCount={splitDieCount}
-          mirrorDieCount={mirrorDieCount}
-          riggedDieCount={riggedDieCount}
+          diceCount={diceConfig.d6Count}
+          coinCount={diceConfig.coinCount}
+          nickelCount={diceConfig.nickelCount}
+          d3Count={diceConfig.d3Count}
+          d4Count={diceConfig.d4Count}
+          d8Count={diceConfig.d8Count}
+          d10Count={diceConfig.d10Count}
+          d12Count={diceConfig.d12Count}
+          d20Count={diceConfig.d20Count}
+          thumbTackCount={diceConfig.thumbTackCount}
+          goldenPyramidCount={diceConfig.goldenPyramidCount}
+          caltropCount={diceConfig.caltropCount}
+          casinoRejectCount={diceConfig.casinoRejectCount}
+          weightedDieCount={diceConfig.weightedDieCount}
+          loadedCoinCount={diceConfig.loadedCoinCount}
+          cursedDieCount={diceConfig.cursedDieCount}
+          splitDieCount={diceConfig.splitDieCount}
+          mirrorDieCount={diceConfig.mirrorDieCount}
+          riggedDieCount={diceConfig.riggedDieCount}
           onDiceScoreChange={setDiceScore}
           diceShaderEnabled={diceShaderEnabled}
           towerCardEnabled={towerCardEnabled}
@@ -682,6 +680,30 @@ function AppContent() {
           }}
           currentScores={gameState.scoring.currentScores}
           previousScores={previousScores.current}
+          onEnemyHover={setHoveredEnemy}
+          onAbilityHover={setHighlightedDiceIds}
+          combatLogMessages={combatLogMessages}
+          addCombatLog={addCombatLog}
+        />
+
+        <CombinedMenu3D
+          position={[-0.5, 1.1, 2.5]}
+          rotation={[Math.PI / 12, 0, 0]}
+          cameraName={cameraName}
+          cinematicMode={cinematicMode}
+          hellFactor={hellFactor}
+          diceScore={diceScore}
+          timeOfDay={gameState.timeOfDay}
+          daysMarked={gameState.daysMarked}
+          successfulRolls={gameState.successfulRolls}
+          currentAttempts={gameState.currentAttempts}
+          gamePhase={gameState.phase}
+          onCinematicModeToggle={() => setCinematicMode(!cinematicMode)}
+          onVisibilityChange={setDevPanelVisible}
+          externalVisible={devPanelVisible}
+          onRecenterGyro={() => recenterGyroRef.current?.()}
+          isMobile={false}
+          onClose={() => {}}
         />
       </Canvas>
 

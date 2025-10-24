@@ -1,4 +1,3 @@
-import React from "react";
 import { Text3D } from "./Text3D"; // Assumes Text3D is in the same folder
 
 interface IconBox3DProps {

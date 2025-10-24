@@ -1,4 +1,3 @@
-import React from "react";
 import * as THREE from "three";
 
 const dotGeometry = new THREE.SphereGeometry(0.015, 16, 16);

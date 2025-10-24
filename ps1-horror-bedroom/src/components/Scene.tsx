@@ -3,8 +3,7 @@ import {
   useCallback,
   useRef,
   useEffect,
-  Suspense,
-  Fragment
+  Suspense
 } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Physics, RigidBody, CuboidCollider } from "@react-three/rapier";
@@ -24,54 +23,33 @@ import { useDeviceOrientation } from "../systems/deviceOrientationControls";
 import { useCorruption } from "../systems/corruptionSystem";
 import { isMobileDevice } from "../utils/mobileDetection";
 import { useGameState } from "../contexts/GameStateContext";
-import { useAudioSystem } from "../systems/audioSystem";
+import { useAudioSystem, useUISound, useCombatSound } from "../systems/audioSystem";
 import CameraSystem from "./camera/CameraSystem";
 import LightingRig from "./lighting/LightingRig";
-import Room from "./models/Room";
-import Bed from "./models/Bed";
-import Bureau from "./models/Bureau";
-import TVStand from "./models/TVStand";
-import CeilingLight from "./models/CeilingLight";
-import Decorations from "./models/Decorations";
-import Ashtray from "./models/Ashtray";
-import BoardGame from "./models/BoardGame";
 import DiceReceptacle from "./models/DiceReceptacle";
 import { DiceTrayBoundsDebug } from "./models/DiceTrayBoundsDebug";
 import Card from "./models/Card";
 import Hourglass from "./models/Hourglass";
-import House from "./house/House";
 import DiceManager, { type DiceManagerHandle } from "./models/DiceManager";
 import ItemChoice from "./models/ItemChoice";
-import Cigarette from "./models/Cigarette";
-import IncenseStick from "./models/IncenseStick";
 import { useLoader } from "@react-three/fiber";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import {
   type ItemDefinition,
-  type PlayerInventory,
-  getItemPrice,
-  isConsumableActive
+  type PlayerInventory
 } from "../systems/itemSystem";
 import { type GameState } from "../systems/gameStateSystem";
-import { Imp } from "./enemies/Imp";
-import { combatSystem } from "../systems/combatSystem";
 import type { Enemy } from "../types/combat.types";
-import { Portal } from "./models/Portal";
 import { useCombat } from "../hooks/useCombat";
-import FormOnCube from "./ui/3d/FormOnCube";
 import { CharacterHUD3D } from "./ui/3d/CharacterHUD3D";
+import { CombatLog3D, type CombatLogMessage } from "./ui/3d/CombatLog3D";
+import type { EnemyInfoData } from "./ui/EnemyInfo";
+// New extracted components
+import { EnemyRenderer } from "./combat/EnemyRenderer";
+import { EnvironmentRenderer } from "./environment/EnvironmentRenderer";
+import { SlashEffect, type SlashType } from "./effects/SlashEffect";
 
 // import DiceInfo from "./ui/DiceInfo";
-const isInteractive = (object: THREE.Object3D | null): boolean => {
-  let current = object;
-  while (current) {
-    if (current.name === "ui_3d") {
-      return true;
-    }
-    current = current.parent;
-  }
-  return false;
-};
 
 interface SceneProps {
   onCameraNameChange: (name: string) => void;
@@ -149,6 +127,10 @@ interface SceneProps {
   onRecenterGyroReady?: (recenterFn: () => void) => void; // Mobile: Provide recenter function
   currentScores?: any[]; // Current scoring data for trigger effects
   previousScores?: any[]; // Previous scoring data for trigger effects
+  onEnemyHover?: (enemyData: EnemyInfoData | null) => void; // Enemy hover for tooltip
+  onAbilityHover?: (diceIds: number[]) => void; // Ability hover to highlight contributing dice
+  combatLogMessages?: CombatLogMessage[]; // Combat log messages
+  addCombatLog?: (text: string, color?: string) => void; // Function to add combat log messages
 }
 export function Scene({
   onCameraNameChange,
@@ -197,7 +179,6 @@ export function Scene({
   onItemSelected,
   onDieSettledForCurrency,
   storeChoices,
-  spendCurrency,
   gameState,
   inventory,
   onStartGame,
@@ -208,16 +189,73 @@ export function Scene({
   currentScores,
   previousScores,
   onRecenterGyroReady,
-  playerBalance
+  playerBalance,
+  onEnemyHover,
+  onAbilityHover,
+  combatLogMessages = [],
+  addCombatLog
 }: SceneProps) {
   const { scene, camera, gl } = useThree();
-  const { returnToMenu } = useGameState();
+  const {
+    returnToMenu,
+    combatSelectAbility,
+    combatSelectEnemy,
+    combatUseAbility,
+    combatPlayerTurnStart,
+    combatResolve,
+    combatEnemyRoll
+  } = useGameState();
   const [isStarting, setIsStarting] = useState(false);
   const hasStartedGameRef = useRef(false);
 
   const [isMobile] = useState(() => isMobileDevice());
 
   useAudioSystem(camera);
+  const { playSuccess } = useUISound();
+  const { playSlash } = useCombatSound();
+
+  // Slash effects state
+  const [activeSlashes, setActiveSlashes] = useState<Array<{
+    id: string;
+    position: [number, number, number];
+    type: SlashType;
+  }>>([]);
+
+  // Map ability category to slash type
+  const getSlashTypeForAbility = (abilityCategory: string): SlashType => {
+    switch (abilityCategory) {
+      case "pair":
+        return "single"; // Quick strike
+      case "two_pair":
+        return "double"; // Double strike
+      case "three_of_kind":
+      case "straight_3":
+        return "cleave"; // Run of 3
+      default:
+        return "single";
+    }
+  };
+
+  // Spawn a slash effect at enemy position
+  const spawnSlash = useCallback((enemyId: number, abilityCategory: string) => {
+    const enemy = gameState.combat.enemies.find(e => e.id === enemyId);
+    if (!enemy) return;
+
+    const slashType = getSlashTypeForAbility(abilityCategory);
+    const newSlash = {
+      id: `slash-${Date.now()}-${Math.random()}`,
+      position: [enemy.position[0], enemy.position[1], enemy.position[2]] as [number, number, number],
+      type: slashType
+    };
+
+    setActiveSlashes(prev => [...prev, newSlash]);
+    playSlash();
+
+    // Remove slash after animation completes (500ms)
+    setTimeout(() => {
+      setActiveSlashes(prev => prev.filter(s => s.id !== newSlash.id));
+    }, 500);
+  }, [gameState.combat.enemies, playSlash]);
 
   useEffect(() => {
     if (gameState.phase === "idle" && !hasStartedGameRef.current) {
@@ -248,11 +286,206 @@ export function Scene({
   const pitchRef = useRef(0);
 
   const [hoveredDiceId, setHoveredDiceId] = useState<number | null>(null);
+  const [hoveredEnemyId, setHoveredEnemyId] = useState<number | null>(null);
   const [isCursorLocked, setIsCursorLocked] = useState(false);
 
-  const { enemies, startCombat, endCombat, isCombatActive } = useCombat();
+  const { enemies, startCombat, endCombat, isCombatActive, combatPhase } =
+    useCombat();
   const combatTimerRef = useRef<number | null>(null);
   const activeCombatTimeOfDay = useRef<TimeOfDay | null>(null); // Track when combat *started*
+
+  // Debug: Log enemy count and combat phase changes
+  useEffect(() => {
+    console.log(
+      `👹 Enemy count: ${enemies.length}, Combat phase: ${combatPhase}`
+    );
+    if (enemies.length > 0) {
+      console.log("👹 Enemies:", enemies);
+    }
+
+    // Add combat log messages for phase changes
+    if (
+      combatPhase === "combat_enemy_spawn" &&
+      enemies.length > 0 &&
+      addCombatLog
+    ) {
+      addCombatLog(`${enemies.length} enemies appeared!`, "#FF0000");
+      enemies.forEach((enemy) => {
+        addCombatLog(
+          `${enemy.type.toUpperCase()}: ${enemy.hp}/${enemy.maxHp} HP`,
+          "#FFA500"
+        );
+      });
+      addCombatLog("Throw your dice to begin!", "#00FF00");
+    }
+
+    if (combatPhase === "combat_await_player" && addCombatLog) {
+      addCombatLog(
+        `Round complete! ${enemies.length} enemies remain.`,
+        "#FFA500"
+      );
+      addCombatLog("Throw your dice to continue!", "#00FF00");
+    }
+
+    if (combatPhase === "combat_enemy_roll" && addCombatLog) {
+      enemies.forEach((enemy) => {
+        if (enemy.attackRoll) {
+          addCombatLog(
+            `${enemy.type.toUpperCase()} rolled ${enemy.diceValue} (${
+              enemy.attackRoll
+            } dmg)`,
+            "#FFFF00"
+          );
+        }
+      });
+    }
+
+    if (combatPhase === "combat_player_turn" && addCombatLog) {
+      addCombatLog("Your turn! Select an ability to attack.", "#00FF00");
+    }
+  }, [enemies, combatPhase, addCombatLog]);
+
+  // Enemy interaction handlers
+  const handleEnemyClick = useCallback(
+    (enemyId: number) => {
+      if (!isCombatActive) return;
+
+      const { selectedAbility } = gameState.combat;
+      const enemy = enemies.find((e) => e.id === enemyId);
+
+      if (selectedAbility) {
+        // If ability is already selected, use it on this enemy
+        console.log(`⚔️ Using ability on enemy ${enemyId}`);
+
+        const abilityScore = gameState.scoring.currentScores.find(
+          (s) => s.category === selectedAbility
+        );
+
+        if (addCombatLog && abilityScore && enemy) {
+          addCombatLog(
+            `Used ${selectedAbility.replace(
+              "_",
+              " "
+            )} on ${enemy.type.toUpperCase()} for ${
+              abilityScore.score
+            } damage!`,
+            "#00FFFF"
+          );
+        }
+
+        // Spawn slash effect at enemy position
+        spawnSlash(enemyId, selectedAbility);
+
+        combatUseAbility(enemyId);
+      } else {
+        // Just select the enemy for targeting
+        console.log(`🎯 Selected enemy ${enemyId}`);
+        if (addCombatLog && enemy) {
+          addCombatLog(`Targeted ${enemy.type.toUpperCase()}`, "#FFFFFF");
+        }
+        combatSelectEnemy(enemyId);
+      }
+    },
+    [
+      isCombatActive,
+      gameState.combat,
+      gameState.scoring.currentScores,
+      enemies,
+      combatUseAbility,
+      combatSelectEnemy,
+      addCombatLog,
+      spawnSlash
+    ]
+  );
+
+  const handleEnemyHover = useCallback(
+    (enemy: Enemy, mouseEvent: MouseEvent) => {
+      console.log(`🎯 Hovering enemy ${enemy.id}`, mouseEvent);
+      setHoveredEnemyId(enemy.id);
+      if (onEnemyHover) {
+        onEnemyHover({
+          enemy,
+          position: { x: mouseEvent.clientX, y: mouseEvent.clientY }
+        });
+      }
+    },
+    [onEnemyHover]
+  );
+
+  const handleEnemyHoverEnd = useCallback(() => {
+    console.log(`🎯 Hover ended`);
+    setHoveredEnemyId(null);
+    if (onEnemyHover) {
+      onEnemyHover(null);
+    }
+  }, [onEnemyHover]);
+
+  // Trigger enemy roll when player throws dice during enemy spawn or await_player phase
+  useEffect(() => {
+    if (
+      gameState.phase === "settled" &&
+      (gameState.combat.phase === "combat_enemy_spawn" ||
+        gameState.combat.phase === "combat_await_player")
+    ) {
+      // Player threw dice while enemies spawned or during next round, now have enemies roll
+      console.log("🎲 Dice settled - triggering enemy roll");
+      const timer = setTimeout(() => {
+        combatEnemyRoll();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [gameState.phase, gameState.combat.phase, combatEnemyRoll]);
+
+  // Start player turn after enemy roll completes
+  useEffect(() => {
+    if (
+      gameState.phase === "settled" &&
+      gameState.combat.phase === "combat_enemy_roll"
+    ) {
+      // Enemy roll completed, start player turn
+      console.log("⚔️ Enemy roll complete - starting player turn");
+      const timer = setTimeout(() => {
+        combatPlayerTurnStart();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [gameState.phase, gameState.combat.phase, combatPlayerTurnStart]);
+
+  // Reset dice when new combat starts
+  useEffect(() => {
+    if (gameState.combat.phase === "combat_enemy_spawn") {
+      console.log("⚔️ New combat starting - resetting dice");
+      diceManagerRef.current?.startNewRound();
+    }
+  }, [gameState.combat.phase]);
+
+  // Auto-resolve combat when dice are picked up OR all enemies defeated
+  useEffect(() => {
+    const playerPickedUpDice =
+      gameState.phase === "idle" &&
+      gameState.combat.phase === "combat_player_turn" &&
+      isCombatActive;
+
+    const allEnemiesDefeated =
+      gameState.combat.phase === "combat_player_turn" &&
+      gameState.combat.enemies.length === 0 &&
+      isCombatActive;
+
+    if (playerPickedUpDice || allEnemiesDefeated) {
+      const reason = allEnemiesDefeated ? "All enemies defeated" : "Player turn ended";
+      console.log(`⚔️ ${reason} - resolving combat`);
+
+      // Play victory sound if all enemies defeated
+      if (allEnemiesDefeated) {
+        playSuccess();
+      }
+
+      const timer = setTimeout(() => {
+        combatResolve();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [gameState.phase, gameState.combat.phase, gameState.combat.enemies.length, isCombatActive, combatResolve, playSuccess]);
 
   // Start/End combat based on time of day and game phase
   useEffect(() => {
@@ -269,6 +502,10 @@ export function Scene({
       "evaluating"
     ].includes(gameState.phase);
     // REMOVED: const isCombatTime = timeOfDay !== "night"; // Combat occurs during morning and midday
+
+    console.log(
+      `[Combat Trigger] Phase: ${gameState.phase}, Time: ${timeOfDay}, IsGameplayPhase: ${isGameplayPhase}, IsCombatActive: ${isCombatActive}, ActiveTimeOfDay: ${activeCombatTimeOfDay.current}`
+    );
 
     // --- Logic to START Combat ---
     // Start combat if in a gameplay phase, not already active, and haven't started for this time yet.
@@ -854,15 +1091,32 @@ export function Scene({
         timeProgress={getTimeProgressRatio(successfulRolls)}
       />
 
-      <FormOnCube />
+      {/* <FormOnCube /> */}
       <CharacterHUD3D
         scores={gameState.scoring.currentScores}
         timeOfDay={gameState.scoring.currentTimeOfDay}
         currentAttempts={gameState.currentAttempts}
         maxAttempts={2}
         balance={playerBalance}
-        currentHP={100}
+        currentHP={gameState.combat.playerHP}
+        maxHP={gameState.combat.maxPlayerHP}
+        isCombatActive={isCombatActive}
+        selectedAbility={gameState.combat.selectedAbility}
+        onAbilityClick={combatSelectAbility}
+        usedDiceIds={gameState.combat.usedDiceIds}
+        currentDiceRoll={gameState.combat.currentDiceRoll}
+        onAbilityHover={onAbilityHover}
       />
+
+      {/* Combat Log - only show during combat */}
+      {isCombatActive && (
+        <CombatLog3D
+          messages={combatLogMessages}
+          position={[-3.865, 0.3, 4.12]}
+          scale={.16}
+          rotation={[0, Math.PI / 1.36, 0]}
+        />
+      )}
 
       <mesh position={[0.28, 2.8, 1.2]}>
         <boxGeometry args={[0.5, 0.1, 0.5]} />
@@ -992,28 +1246,24 @@ export function Scene({
             spotlightIntensity={spotlightIntensity}
             spotlightAngle={spotlightAngle}
           />
-          {enemies.map((enemy, index) => (
-            <Fragment key={enemy.id}>
-              {enemy.portalProgress > 0 && (
-                <Portal
-                  progress={enemy.portalProgress}
-                  position={[
-                    enemy.position[0],
-                    enemy.position[1],
-                    enemy.position[2] + 0.01
-                  ]}
-                />
-              )}
-              <Imp
-                position={enemy.position}
-                scale={0.1}
-                animationOffset={index}
-                entranceAnimationProgress={enemy.entranceAnimationProgress}
-                playEntranceAnimation={true}
-                rotation={[0, Math.PI / (index * 0.2 - 1.1), 0]}
-                sensor={enemy.entranceAnimationProgress < 1}
-              />
-            </Fragment>
+
+          {/* Combat enemies */}
+          <EnemyRenderer
+            enemies={enemies}
+            selectedEnemyId={gameState.combat.selectedEnemyId}
+            hoveredEnemyId={hoveredEnemyId}
+            onEnemyClick={handleEnemyClick}
+            onEnemyHover={handleEnemyHover}
+            onEnemyHoverEnd={handleEnemyHoverEnd}
+          />
+
+          {/* Slash effects */}
+          {activeSlashes.map(slash => (
+            <SlashEffect
+              key={slash.id}
+              position={slash.position}
+              type={slash.type}
+            />
           ))}
 
           {import.meta.env.DEV && <DiceTrayBoundsDebug />}
@@ -1089,55 +1339,13 @@ export function Scene({
           ))}
         </Physics>
       </Suspense>
-      <House hellFactor={hellFactor} />
 
-      <Room hellFactor={hellFactor} />
-      <Bed hellFactor={hellFactor} />
-      <Bureau hellFactor={hellFactor} />
-      <TVStand hellFactor={hellFactor} />
-      <CeilingLight hellFactor={hellFactor} />
-      <Decorations hellFactor={hellFactor} />
-      <Ashtray
+      {/* Environment (room, furniture, decorations) */}
+      <EnvironmentRenderer
         hellFactor={hellFactor}
-        cigaretteCount={inventory.passiveEffects.cigarette}
-      />
-
-      {inventory.passiveEffects.cigarette > 0 && (
-        <Cigarette
-          position={[
-            RECEPTACLE_POSITION[0] - 0.666,
-            RECEPTACLE_POSITION[1] + 0.12,
-            RECEPTACLE_POSITION[2] - 0.22
-          ]}
-          rotation={[Math.PI / 2, Math.PI, Math.PI / 4]}
-          scale={1.8}
-          count={inventory.passiveEffects.cigarette}
-          onHover={(isHovered) =>
-            onTableItemHover?.(isHovered ? "cigarette" : null)
-          }
-        />
-      )}
-
-      {inventory.consumables.find((c) => c.itemId === "incense") && (
-        <IncenseStick
-          position={[
-            RECEPTACLE_POSITION[0] + 0.456,
-            RECEPTACLE_POSITION[1] + 0.2,
-            RECEPTACLE_POSITION[2] - 0.249
-          ]}
-          rotation={[-Math.PI / -2.3, 0.6, Math.PI / 4]}
-          scale={2.66}
-          isActive={isConsumableActive(inventory, "incense")}
-          onHover={(isHovered) =>
-            onTableItemHover?.(isHovered ? "incense" : null)
-          }
-        />
-      )}
-
-      <BoardGame
-        position={[2.01, 1.55, 4.88]}
-        hellFactor={hellFactor}
+        inventory={inventory}
         daysMarked={daysMarked}
+        onTableItemHover={onTableItemHover}
       />
     </>
   );

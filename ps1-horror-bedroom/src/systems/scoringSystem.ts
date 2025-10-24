@@ -252,6 +252,52 @@ function calculateMultiScoreMultiplier(achievedCount: number): number {
  * @param previousScores - Previous scores for combo tracking
  * @param comboMultiplierActive - Whether incense is active (adds 15% per combo)
  */
+/**
+ * Calculate scores from a subset of dice (excluding used dice IDs)
+ * Used for recalculating available abilities after some dice are used in combat
+ */
+export function calculateScoresFromRemainingDice(
+  diceRoll: DiceRoll,
+  usedDiceIds: number[],
+  attemptNumber?: number,
+  previousScores?: ScoreCategoryData[],
+  comboMultiplierActive: boolean = false
+): ScoreCategoryData[] {
+  const diceIds = diceRoll.diceIds || [];
+  const values = diceRoll.values;
+  const scoreMultipliers = diceRoll.scoreMultipliers || [];
+
+  // Filter to only unused dice
+  const remainingIndices: number[] = [];
+  const remainingValues: number[] = [];
+  const remainingIds: number[] = [];
+  const remainingMultipliers: number[] = [];
+
+  diceIds.forEach((id, index) => {
+    if (!usedDiceIds.includes(id)) {
+      remainingIndices.push(index);
+      remainingValues.push(values[index]);
+      remainingIds.push(id);
+      remainingMultipliers.push(scoreMultipliers[index] || 1);
+    }
+  });
+
+  // If no dice remain, return empty scores
+  if (remainingValues.length === 0) {
+    return initializeEmptyScores();
+  }
+
+  // Calculate scores from remaining dice
+  const remainingDiceRoll: DiceRoll = {
+    values: remainingValues,
+    total: remainingValues.reduce((sum, v) => sum + v, 0),
+    diceIds: remainingIds,
+    scoreMultipliers: remainingMultipliers
+  };
+
+  return calculateScores(remainingDiceRoll, attemptNumber, previousScores, comboMultiplierActive);
+}
+
 export function calculateScores(
   diceRoll: DiceRoll,
   attemptNumber?: number,

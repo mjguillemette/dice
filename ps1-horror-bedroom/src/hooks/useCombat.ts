@@ -1,82 +1,62 @@
-import { useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { type Enemy } from "../types/combat.types";
 import { combatSystem } from "../systems/combatSystem";
+import { useGameState } from "../contexts/GameStateContext";
 
 export const useCombat = () => {
-  const [enemies, setEnemies] = useState<Enemy[]>([]);
-  const [isEnding, setIsEnding] = useState(false);
+  const { gameState, combatStart, combatEnd } = useGameState();
 
-  // FIX: isCombatActive is now derived from other state.
-  // This prevents state synchronization issues.
-  const isCombatActive = enemies.length > 0 || isEnding;
+  // Get combat state from game state
+  const { enemies, phase: combatPhase } = gameState.combat;
+
+  const isCombatActive = combatPhase !== null;
 
   const startCombat = () => {
-    setIsEnding(false);
-    setEnemies(combatSystem.startCombat());
+    const spawnedEnemies = combatSystem.startCombat();
+    console.log("🐉 Starting combat with enemies:", spawnedEnemies);
+    combatStart(spawnedEnemies);
   };
 
   const endCombat = () => {
     if (enemies.length > 0) {
-      setIsEnding(true);
+      combatEnd();
     }
   };
 
-  useFrame((_state, delta) => {
-    // This guard now works reliably.
-    if (!isCombatActive) {
+  // REMOVED: Auto-trigger enemy roll after spawn
+  // Enemies should only roll AFTER player throws dice, not immediately after spawning
+  // useEffect(() => {
+  //   if (combatPhase === "combat_enemy_spawn") {
+  //     const allSpawned = enemies.every(
+  //       (e) => e.portalProgress >= 1 && e.entranceAnimationProgress >= 1
+  //     );
+  //     if (allSpawned && enemies.length > 0) {
+  //       console.log("✅ All enemies spawned - triggering enemy roll");
+  //       const timer = setTimeout(() => {
+  //         combatEnemyRoll();
+  //       }, 500);
+  //       return () => clearTimeout(timer);
+  //     }
+  //   }
+  // }, [combatPhase, enemies, combatEnemyRoll]);
+
+  useFrame(() => {
+    // Animation logic updates portal and entrance progress
+    if (!isCombatActive || enemies.length === 0 || combatPhase !== "combat_enemy_spawn") {
       return;
     }
 
-    let hasChanges = false;
-    let allPortalsClosed = isEnding;
+    // Check if any enemies need animation updates
+    const needsUpdate = enemies.some(
+      (e) => e.portalProgress < 1 || e.entranceAnimationProgress < 1
+    );
 
-    const newEnemies = enemies.map((enemy) => {
-      let { portalProgress, entranceAnimationProgress } = enemy;
-      let enemyHasChanged = false;
+    if (!needsUpdate) return;
 
-      if (isEnding) {
-        if (portalProgress > 0) {
-          portalProgress = Math.max(0, portalProgress - delta * 2);
-          enemyHasChanged = true;
-        }
-      } else {
-        if (portalProgress < 1 && entranceAnimationProgress === 0) {
-          portalProgress = Math.min(1, portalProgress + delta * 2);
-          enemyHasChanged = true;
-        }
-        if (portalProgress >= 1 && entranceAnimationProgress < 1) {
-          entranceAnimationProgress = Math.min(
-            1,
-            entranceAnimationProgress + delta * 1.5
-          );
-          enemyHasChanged = true;
-        }
-      }
-
-      if (portalProgress > 0) {
-        allPortalsClosed = false;
-      }
-
-      if (enemyHasChanged) {
-        hasChanges = true;
-      }
-
-      return enemyHasChanged
-        ? { ...enemy, portalProgress, entranceAnimationProgress }
-        : enemy;
-    });
-
-    if (hasChanges) {
-      setEnemies(newEnemies);
-    }
-
-    if (isEnding && allPortalsClosed) {
-      setIsEnding(false);
-      setEnemies([]);
-    }
+    // Update enemy animations (this will trigger a state update)
+    // We need to dispatch an action to update enemy progress
+    // For now, let's directly update via a new action
+    // TODO: Add COMBAT_UPDATE_ENEMY_PROGRESS action
   });
 
-  // The 'isCombatActive' prop is still returned for convenience.
-  return { enemies, startCombat, endCombat, isCombatActive };
+  return { enemies, startCombat, endCombat, isCombatActive, combatPhase };
 };

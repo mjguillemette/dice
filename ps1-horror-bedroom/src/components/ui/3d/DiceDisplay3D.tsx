@@ -1,4 +1,3 @@
-import React from "react";
 import { a, useSpring } from "@react-spring/three";
 import { UIPanel3D } from "./UIPanel3D";
 import { Text3D } from "./Text3D";
@@ -51,7 +50,7 @@ export const DiceDisplay3D = ({
         */}
         <Text3D
           fontSize={0.12}
-          color={textColor}
+          color={textColor as any}
           anchorX="center"
           anchorY="middle"
           position={[0, 0, size / 2 + 0.001]}

@@ -10,6 +10,7 @@ import {
   initialScoringState,
   initializeEmptyScores
 } from "./scoringSystem";
+import type { CombatState, CombatPhase, Enemy } from "../types/combat.types";
 
 // ===== TYPES & INTERFACES =====
 
@@ -47,6 +48,9 @@ export interface GameState {
   dailyBestScore: number; // Best score achieved today
   corruption: number; // 0-1, where 1 is game over
   isGameOver: boolean; // True when corruption reaches 100%
+
+  // Combat system
+  combat: CombatState;
 }
 
 export type GameAction =
@@ -63,7 +67,18 @@ export type GameAction =
   | { type: "FAILED_ROLL" }
   | { type: "PICKUP_DICE" }
   | { type: "RESET_ATTEMPTS" }
-  | { type: "ITEM_SELECTED" };
+  | { type: "ITEM_SELECTED" }
+  // Combat actions
+  | { type: "COMBAT_START"; enemies: Enemy[] }
+  | { type: "COMBAT_ENEMY_ROLL" }
+  | { type: "COMBAT_PLAYER_TURN_START" }
+  | { type: "COMBAT_SELECT_ABILITY"; abilityCategory: string }
+  | { type: "COMBAT_SELECT_ENEMY"; enemyId: number }
+  | { type: "COMBAT_USE_ABILITY"; enemyId?: number } // undefined for non-targeted abilities
+  | { type: "COMBAT_RESOLVE" }
+  | { type: "COMBAT_END" }
+  | { type: "COMBAT_APPLY_DAMAGE_TO_PLAYER"; damage: number }
+  | { type: "COMBAT_APPLY_DAMAGE_TO_ENEMY"; enemyId: number; damage: number };
 
 // ===== CONSTANTS =====
 
@@ -95,6 +110,17 @@ export function calculateTotalScore(scores: import("./scoringSystem").ScoreCateg
 
 // ===== INITIAL STATE =====
 
+const initialCombatState: CombatState = {
+  phase: null,
+  enemies: [],
+  playerHP: 10, // Start at 10 until highest_total is achieved
+  maxPlayerHP: 10, // Start at 10 until highest_total is achieved
+  selectedAbility: null,
+  selectedEnemyId: null,
+  usedDiceIds: [], // Track dice used this combat round
+  currentDiceRoll: null // Current dice roll for recalculating abilities
+};
+
 export const initialGameState: GameState = {
   timeOfDay: "morning",
   daysMarked: 2, // Start with 1st and 2nd marked
@@ -107,7 +133,8 @@ export const initialGameState: GameState = {
   dailyTarget: calculateDailyTarget(2), // Target for day 2
   dailyBestScore: 0,
   corruption: 0,
-  isGameOver: false
+  isGameOver: false,
+  combat: initialCombatState
 };
 
 // ===== STATE MACHINE LOGIC =====
@@ -269,11 +296,41 @@ export function gameStateReducer(
 
       console.log("📊 Total bucket score:", totalBucketScore, "Daily best:", newDailyBest);
 
+      // Update maxPlayerHP if highest_total score was achieved
+      const highestTotalScore = newScoring.currentScores.find(
+        s => s.category === "highest_total"
+      );
+      const newMaxHP = highestTotalScore?.achieved
+        ? highestTotalScore.score
+        : state.combat.maxPlayerHP;
+
+      // If maxHP increased, also heal player to new max
+      const newPlayerHP = newMaxHP > state.combat.maxPlayerHP
+        ? newMaxHP
+        : state.combat.playerHP;
+
+      if (newMaxHP !== state.combat.maxPlayerHP) {
+        console.log(`💖 Max HP updated: ${state.combat.maxPlayerHP} → ${newMaxHP} (Current HP: ${newPlayerHP})`);
+      }
+
+      // Store dice roll in combat state for recalculating abilities
+      const currentDiceRoll = action.diceRoll ? {
+        values: action.diceRoll.values,
+        diceIds: action.diceRoll.diceIds || [],
+        scoreMultipliers: action.diceRoll.scoreMultipliers || []
+      } : state.combat.currentDiceRoll;
+
       return {
         ...state,
         phase: "settled",
         scoring: newScoring,
-        dailyBestScore: newDailyBest
+        dailyBestScore: newDailyBest,
+        combat: {
+          ...state.combat,
+          maxPlayerHP: newMaxHP,
+          playerHP: newPlayerHP,
+          currentDiceRoll: currentDiceRoll
+        }
       };
     }
 
@@ -392,6 +449,21 @@ export function gameStateReducer(
         }
       }
 
+      // Reset HP at start of new day
+      const combatState = justCompletedDay
+        ? {
+            ...state.combat,
+            playerHP: state.combat.maxPlayerHP,
+            // Also reset combat phase and enemies
+            phase: null as CombatPhase,
+            enemies: [] as Enemy[]
+          }
+        : state.combat;
+
+      if (justCompletedDay) {
+        console.log(`💖 New day! HP restored to max: ${state.combat.maxPlayerHP}`);
+      }
+
       return {
         ...state,
         phase: newIsGameOver ? "menu" : (justCompletedDay ? "item_selection" : "idle"),
@@ -403,7 +475,8 @@ export function gameStateReducer(
         dailyTarget: newDailyTarget,
         dailyBestScore: newDailyBestScore,
         corruption: newCorruption,
-        isGameOver: newIsGameOver
+        isGameOver: newIsGameOver,
+        combat: combatState
       };
     }
 
@@ -555,6 +628,307 @@ export function gameStateReducer(
       return {
         ...state,
         phase: "idle"
+      };
+    }
+
+    // ===== COMBAT ACTIONS =====
+
+    case "COMBAT_START": {
+      console.log("⚔️ Combat starting with", action.enemies.length, "enemies");
+      return {
+        ...state,
+        combat: {
+          ...state.combat,
+          phase: "combat_enemy_spawn",
+          enemies: action.enemies,
+          selectedAbility: null,
+          selectedEnemyId: null,
+          usedDiceIds: [], // Clear used dice for new combat
+          currentDiceRoll: null // Clear dice roll for new combat
+        }
+      };
+    }
+
+    case "COMBAT_ENEMY_ROLL": {
+      console.log("🎲 Enemies rolling for attack damage - clearing used dice");
+      // Roll attack damage for each enemy (d4 for damage, show d6 for visual)
+      const enemiesWithRolls = state.combat.enemies.map(enemy => {
+        const visualDice = Math.floor(Math.random() * 6) + 1; // d6 for visual (1-6)
+        const actualDamage = Math.floor(Math.random() * 4) + 1; // d4 for damage (1-4)
+        return {
+          ...enemy,
+          diceValue: visualDice,
+          attackRoll: actualDamage
+        };
+      });
+
+      return {
+        ...state,
+        combat: {
+          ...state.combat,
+          phase: "combat_player_turn",
+          enemies: enemiesWithRolls,
+          usedDiceIds: [] // Clear used dice at start of new round
+        }
+      };
+    }
+
+    case "COMBAT_PLAYER_TURN_START": {
+      console.log("👤 Player turn starting");
+      return {
+        ...state,
+        phase: "idle", // Allow dice throwing
+        combat: {
+          ...state.combat,
+          phase: "combat_player_turn"
+        }
+      };
+    }
+
+    case "COMBAT_SELECT_ABILITY": {
+      console.log("✨ Ability selected:", action.abilityCategory);
+      return {
+        ...state,
+        combat: {
+          ...state.combat,
+          selectedAbility: action.abilityCategory,
+          selectedEnemyId: null // Clear enemy selection when changing ability
+        }
+      };
+    }
+
+    case "COMBAT_SELECT_ENEMY": {
+      console.log("🎯 Enemy targeted:", action.enemyId);
+      return {
+        ...state,
+        combat: {
+          ...state.combat,
+          selectedEnemyId: action.enemyId
+        }
+      };
+    }
+
+    case "COMBAT_USE_ABILITY": {
+      const { selectedAbility, selectedEnemyId } = state.combat;
+      const targetId = action.enemyId || selectedEnemyId;
+
+      if (!selectedAbility || !targetId) {
+        console.warn("⚠️ Cannot use ability: missing ability or target");
+        return state;
+      }
+
+      console.log("💥 Using ability:", selectedAbility, "on enemy:", targetId);
+
+      // Find the ability's score from current scores
+      const abilityScore = state.scoring.currentScores.find(
+        s => s.category === selectedAbility
+      );
+
+      if (!abilityScore || !abilityScore.achieved) {
+        console.warn("⚠️ Ability not available:", selectedAbility);
+        return state;
+      }
+
+      // Track which dice were used for this ability
+      const usedDice = abilityScore.diceIds || [];
+      const newUsedDiceIds = [...state.combat.usedDiceIds, ...usedDice];
+      console.log(`🎲 Used dice: ${usedDice.join(', ')} | Total used this round: ${newUsedDiceIds.join(', ')}`);
+
+      // Apply damage to the target enemy
+      const damage = abilityScore.score;
+      const updatedEnemies = state.combat.enemies.map(enemy => {
+        if (enemy.id === targetId) {
+          const newHP = Math.max(0, enemy.hp - damage);
+          console.log(`💥 Enemy ${enemy.id} HP: ${enemy.hp} → ${newHP} (${damage} damage)`);
+          return { ...enemy, hp: newHP };
+        }
+        return enemy;
+      });
+
+      // Remove defeated enemies
+      const defeatedEnemies = updatedEnemies.filter(e => e.hp <= 0);
+      const survivingEnemies = updatedEnemies.filter(e => e.hp > 0);
+
+      defeatedEnemies.forEach(enemy => {
+        console.log(`💀 ${enemy.type.toUpperCase()} defeated!`);
+      });
+
+      if (defeatedEnemies.length > 0) {
+        console.log(`💀 ${defeatedEnemies.length} enemy(ies) defeated`);
+      }
+
+      // IMPORTANT: Don't end combat immediately when all enemies die
+      // Keep combat active so COMBAT_RESOLVE can handle victory properly
+      // (awards bonus, advances time, resets state)
+      return {
+        ...state,
+        combat: {
+          ...state.combat,
+          enemies: survivingEnemies,
+          selectedAbility: null,
+          selectedEnemyId: null,
+          usedDiceIds: newUsedDiceIds, // Track used dice
+          // Keep combat_player_turn phase even if all enemies defeated
+          // This allows COMBAT_RESOLVE to detect victory and handle it properly
+          phase: state.combat.phase
+        }
+      };
+    }
+
+    case "COMBAT_APPLY_DAMAGE_TO_ENEMY": {
+      console.log("💥 Applying", action.damage, "damage to enemy", action.enemyId);
+
+      const updatedEnemies = state.combat.enemies.map(enemy => {
+        if (enemy.id === action.enemyId) {
+          const newHP = Math.max(0, enemy.hp - action.damage);
+          console.log(`Enemy ${enemy.id} HP: ${enemy.hp} → ${newHP}`);
+          return { ...enemy, hp: newHP };
+        }
+        return enemy;
+      });
+
+      // Remove defeated enemies
+      const aliveEnemies = updatedEnemies.filter(e => e.hp > 0);
+      const defeatedCount = updatedEnemies.length - aliveEnemies.length;
+
+      if (defeatedCount > 0) {
+        console.log(`💀 ${defeatedCount} enemy(ies) defeated!`);
+      }
+
+      return {
+        ...state,
+        combat: {
+          ...state.combat,
+          enemies: aliveEnemies
+        }
+      };
+    }
+
+    case "COMBAT_APPLY_DAMAGE_TO_PLAYER": {
+      console.log("💔 Player taking", action.damage, "damage");
+      const newPlayerHP = Math.max(0, state.combat.playerHP - action.damage);
+
+      const playerDefeated = newPlayerHP <= 0;
+      if (playerDefeated) {
+        console.log("☠️ Player defeated in combat!");
+      }
+
+      return {
+        ...state,
+        combat: {
+          ...state.combat,
+          playerHP: newPlayerHP
+        },
+        isGameOver: playerDefeated,
+        phase: playerDefeated ? "menu" : state.phase
+      };
+    }
+
+    case "COMBAT_RESOLVE": {
+      console.log("⚔️ Resolving combat round");
+
+      // Calculate total enemy damage from SURVIVING enemies only
+      const totalDamage = state.combat.enemies.reduce(
+        (sum, enemy) => sum + (enemy.attackRoll || 0),
+        0
+      );
+
+      console.log(`${state.combat.enemies.length} surviving enemies deal ${totalDamage} total damage`);
+
+      // Apply damage and check if player is defeated
+      const newPlayerHP = Math.max(0, state.combat.playerHP - totalDamage);
+      const playerDefeated = newPlayerHP <= 0;
+
+      // Check if any enemies remain
+      const combatContinues = state.combat.enemies.length > 0 && !playerDefeated;
+      const combatVictory = state.combat.enemies.length === 0 && !playerDefeated;
+
+      // If combat is won, advance time and calculate bonus
+      let bonusAmount = 0;
+      let newTimeState = {
+        timeOfDay: state.timeOfDay,
+        daysMarked: state.daysMarked
+      };
+      let newScoring = state.scoring;
+
+      if (combatVictory) {
+        const remainingRounds = getRollsUntilTimeChange(state.successfulRolls);
+        bonusAmount = remainingRounds * 10; // 10 points per remaining round
+        console.log(`🎉 Combat victory! ${remainingRounds} rounds remaining = ${bonusAmount} bonus points`);
+
+        // Advance to next time of day
+        newTimeState = advanceTime(state.timeOfDay, state.daysMarked);
+        console.log(`⏰ Time advanced from ${state.timeOfDay} to ${newTimeState.timeOfDay}`);
+
+        // Check if we just completed a full day (night -> morning transition)
+        const justCompletedDay = state.timeOfDay === "night";
+
+        // Reset scores for new time period
+        if (justCompletedDay) {
+          // New day - reset scorecard completely
+          newScoring = {
+            ...state.scoring,
+            currentScores: initializeEmptyScores(),
+            currentTimeOfDay: newTimeState.timeOfDay as TimeOfDay
+          };
+          console.log("📊 New day! Scorecard reset for:", newTimeState.timeOfDay);
+        } else {
+          // Just changing time within the same day - reset scores for new period
+          newScoring = {
+            ...state.scoring,
+            currentScores: initializeEmptyScores(),
+            currentTimeOfDay: newTimeState.timeOfDay as TimeOfDay
+          };
+          console.log("📊 Time period changed to:", newTimeState.timeOfDay);
+        }
+
+        // Set phase to item_selection if day completed, otherwise idle
+        const nextPhase = justCompletedDay ? "item_selection" : "idle";
+
+        return {
+          ...state,
+          combat: {
+            ...state.combat,
+            phase: null,
+            playerHP: newPlayerHP,
+            selectedAbility: null,
+            selectedEnemyId: null,
+            usedDiceIds: [],
+            currentDiceRoll: null
+          },
+          ...newTimeState,
+          scoring: newScoring,
+          successfulRolls: state.successfulRolls + remainingRounds, // Fast-forward the rolls
+          currentAttempts: 0,
+          phase: nextPhase
+        };
+      }
+
+      return {
+        ...state,
+        combat: {
+          ...state.combat,
+          phase: combatContinues ? "combat_await_player" : null,
+          playerHP: newPlayerHP,
+          selectedAbility: null,
+          selectedEnemyId: null,
+          usedDiceIds: combatContinues ? state.combat.usedDiceIds : [],
+          currentDiceRoll: combatContinues ? state.combat.currentDiceRoll : null
+        },
+        isGameOver: playerDefeated,
+        phase: !combatContinues ? "idle" : state.phase
+      };
+    }
+
+    case "COMBAT_END": {
+      console.log("🏁 Combat ending");
+      return {
+        ...state,
+        combat: {
+          ...initialCombatState,
+          playerHP: state.combat.playerHP, // Preserve HP
+          maxPlayerHP: state.combat.maxPlayerHP
+        }
       };
     }
 

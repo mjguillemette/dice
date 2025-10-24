@@ -77,6 +77,12 @@ export const SOUNDS = {
     endOfDay: { src: '/sounds/ui/endofday.mp3', category: 'ui' as SoundCategory, volume: 0.7 },
   },
 
+  // === COMBAT SOUNDS ===
+  combat: {
+    slash: { src: '/sounds/combat/slash.mp3', category: 'sfx' as SoundCategory, volume: 0.6 },
+    hit: { src: '/sounds/combat/hit.mp3', category: 'sfx' as SoundCategory, volume: 0.5 },
+  },
+
   // === AMBIENT SOUNDS ===
   ambient: {
     room: { src: '/sounds/ambient/room.mp3', category: 'ambient' as SoundCategory, volume: 0.2, loop: true },
@@ -479,6 +485,21 @@ export function useUISound() {
     playScore,
     playMoneyGain,
     playEndOfDay,
+  };
+}
+
+/**
+ * Hook for combat sounds (slash, hit, etc.)
+ */
+export function useCombatSound() {
+  const { play } = useSound();
+
+  const playSlash = useCallback(() => play(SOUNDS.combat.slash), [play]);
+  const playHit = useCallback(() => play(SOUNDS.combat.hit), [play]);
+
+  return {
+    playSlash,
+    playHit,
   };
 }
 
